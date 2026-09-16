@@ -8,6 +8,10 @@
 #    --fix       Auto-fix all detected issues, then verify
 #    --up        Fix issues + build + start Docker stack
 #    --down      Stop and remove containers (keeps volumes)
+#
+#  NOTE (Windows / Git Bash): On this machine Git Bash mounts C:\Program Files\Git
+#  as its root, so Docker (installed on C:) is not on /c. We route all docker
+#  calls through cmd.exe which DOES have Docker in its Windows PATH.
 #    --reset     Stop containers AND wipe all volumes (destructive!)
 #    --logs      Tail logs from running stack
 # =============================================================================
@@ -47,6 +51,23 @@ for arg in "$@"; do
     *) die "Unknown flag: $arg. Use --help for usage." ;;
   esac
 done
+
+# ── Docker PATH injection (Windows / Git Bash) ───────────────────────────────
+# When bash runs a script file, $HOME is already POSIX: /c/Users/User
+# Docker Desktop may install to AppData (user) or Program Files (system).
+DOCKER_APPDATA_PATH="${HOME}/AppData/Local/Programs/DockerDesktop/resources/bin"
+DOCKER_PROGRAMFILES_PATH="/c/Program Files/Docker/Docker/resources/bin"
+
+if [[ -f "${DOCKER_APPDATA_PATH}/docker" ]]; then
+  export PATH="${DOCKER_APPDATA_PATH}:${PATH}"
+elif [[ -f "${DOCKER_PROGRAMFILES_PATH}/docker" ]]; then
+  export PATH="${DOCKER_PROGRAMFILES_PATH}:${PATH}"
+fi
+# cmd.exe passthrough as last-resort fallback
+if ! command -v docker &>/dev/null; then
+  docker() { cmd.exe /c docker "$@" 2>&1 | tr -d '\r'; }
+fi
+
 
 # ── Resolve project root ─────────────────────────────────────────────────────
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -98,17 +119,27 @@ check_tool() {
   fi
 }
 
-check_tool docker  "Docker"
 check_tool node    "Node.js"
 check_tool npm     "npm"
 
+# Docker check — binary located via PATH injection above
+if command -v docker &>/dev/null; then
+  DOCKER_VER=$(docker --version 2>&1 | tr -d '\r')
+  success "Docker found: $DOCKER_VER"
+else
+  error "Docker not found. Is Docker Desktop installed?"
+  flag_issue
+  [[ "$MODE" == "up" || "$MODE" == "fix" ]] && die "Docker is required. Please install Docker Desktop."
+fi
+
 # Docker daemon running?
 if command -v docker &>/dev/null; then
-  if docker info &>/dev/null 2>&1; then
-    success "Docker daemon is running"
+  DAEMON_CHECK=$(docker info --format '{{.ServerVersion}}' 2>&1 | tr -d '\r')
+  if echo "$DAEMON_CHECK" | grep -qE "^[0-9]+\.[0-9]+"; then
+    success "Docker daemon is running (v${DAEMON_CHECK})"
   else
-    error "Docker is installed but the daemon is not running."
-    warn  "Start Docker Desktop, then re-run this script."
+    error "Docker daemon is not running."
+    warn  "Open Docker Desktop and wait for it to fully start, then re-run this script."
     flag_issue
     [[ "$MODE" == "up" || "$MODE" == "fix" ]] && die "Docker daemon must be running to continue."
   fi
@@ -281,8 +312,8 @@ if [[ ! -f "$VITE_CONFIG" ]]; then
   error "frontend/vite.config.ts not found."
   flag_issue
 else
-  # Check if @/ alias imports are used in source
-  ALIAS_USAGE=$(grep -rl "from '@/" "$PROJECT_ROOT/frontend/src" 2>/dev/null | wc -l | tr -d '[:space:]')
+  # Check if @/ alias imports are used in source (grep exits 1 when nothing found — safe with || true)
+  ALIAS_USAGE=$(grep -rl "from '@/" "$PROJECT_ROOT/frontend/src" 2>/dev/null | wc -l | tr -d '[:space:]' || echo "0")
 
   if [[ "$ALIAS_USAGE" -gt 0 ]]; then
     info "$ALIAS_USAGE file(s) use '@/' path alias"
@@ -345,16 +376,12 @@ fi
 # =============================================================================
 step "Validating docker-compose.yml"
 
-if command -v docker &>/dev/null && docker info &>/dev/null 2>&1; then
-  if docker compose config --quiet 2>/dev/null; then
-    success "docker-compose.yml is valid YAML"
-  else
-    error "docker-compose.yml failed validation:"
-    docker compose config 2>&1 | head -20
-    flag_issue
-  fi
+if docker compose config --quiet 2>/dev/null; then
+  success "docker-compose.yml is valid YAML"
 else
-  info "Skipping docker compose config validation (Docker not running)"
+  error "docker-compose.yml failed validation:"
+  docker compose config 2>&1 | head -20
+  flag_issue
 fi
 
 if grep -q "healthcheck" "$PROJECT_ROOT/docker-compose.yml"; then
@@ -432,12 +459,27 @@ fi
 # SECTION 10 — Docker build + start (--up mode only)
 # =============================================================================
 if [[ "$MODE" == "up" ]]; then
+  step "Syncing package-lock.json with package.json"
+  info "Running: npm install (ensures lockfile is up to date before Docker build)"
+  if npm install; then
+    success "Lockfile synced"
+  else
+    warn "npm install had warnings — continuing anyway"
+  fi
+
   step "Building Docker images (no cache)"
   info "Running: docker compose build --no-cache"
+  echo ""
   if docker compose build --no-cache; then
+    BUILD_EXIT=0
+  else
+    BUILD_EXIT=$?
+  fi
+  echo ""
+  if [[ $BUILD_EXIT -eq 0 ]]; then
     success "Docker images built successfully"
   else
-    die "Docker build failed. Review the errors above."
+    die "Docker build failed (exit $BUILD_EXIT). Review the errors above."
   fi
 
   step "Starting Docker stack"
@@ -453,9 +495,9 @@ if [[ "$MODE" == "up" ]]; then
     local attempt=0
     info "Waiting for '$service' to be healthy..."
     while [[ $attempt -lt $max_attempts ]]; do
-      CONTAINER=$(docker compose ps -q "$service" 2>/dev/null | head -1)
+      CONTAINER=$(docker compose ps -q "$service" 2>/dev/null | tr -d '\r' | head -1)
       if [[ -n "$CONTAINER" ]]; then
-        HEALTH=$(docker inspect --format='{{.State.Health.Status}}' "$CONTAINER" 2>/dev/null || echo "none")
+        HEALTH=$(docker inspect --format='{{.State.Health.Status}}' "$CONTAINER" 2>/dev/null | tr -d '\r')
         if [[ "$HEALTH" == "healthy" ]]; then
           success "$service is healthy ✅"
           return 0

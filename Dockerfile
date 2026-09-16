@@ -31,7 +31,7 @@ WORKDIR /app
 COPY package.json package-lock.json ./
 COPY backend/package.json ./backend/
 
-RUN npm ci --omit=dev --workspace=backend --ignore-scripts
+RUN npm ci --omit=dev --workspace=backend
 
 # Copy backend source
 COPY backend/ ./backend/
