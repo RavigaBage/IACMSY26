@@ -9,12 +9,13 @@
 1. [Project Overview](#-project-overview)
 2. [Key Features](#-key-features)
 3. [System Architecture & Tech Stack](#-system-architecture--tech-stack)
-4. [Quick Start — Docker (Recommended)](#-quick-start--docker-recommended)
+4. [Quick Start — `setup.sh` (Recommended)](#-quick-start--setupsh-recommended)
 5. [Manual Setup — Local Development](#-manual-setup--local-development)
 6. [Environment Variables Reference](#-environment-variables-reference)
 7. [API Endpoints Reference](#-api-endpoints-reference)
 8. [Agents & Device Status Integration](#-agents--device-status-integration)
 9. [Production Deployment](#-production-deployment)
+10. [`setup.sh` Reference](#-setupsh-reference)
 
 ---
 
@@ -93,9 +94,11 @@ It unifies **mobile member identity**, **frictionless check-ins via digital day 
 
 ---
 
-## 🐳 Quick Start — Docker (Recommended)
+## 🚀 Quick Start — `setup.sh` (Recommended)
 
-> **Prerequisites**: [Docker Desktop](https://www.docker.com/products/docker-desktop/) installed and running. Nothing else needed.
+> **Prerequisites**: [Docker Desktop](https://www.docker.com/products/docker-desktop/) installed and running, plus **Node.js v22+** and **Git Bash** (Windows) or any POSIX shell.
+
+The included `setup.sh` script handles everything: pre-flight checks, environment setup, secret generation, issue auto-fixing, Docker build, and health monitoring — all in one command.
 
 ### 1. Clone the repository
 
@@ -104,33 +107,28 @@ git clone https://github.com/RavigaBage/IACMSY26.git
 cd IACMSY26
 ```
 
-### 2. Configure environment variables
+### 2. Copy the environment file
 
 ```bash
 cp .env.example .env
 ```
 
-Open `.env` and fill in your secrets (the only required changes are the JWT keys):
-
-```env
-JWT_SECRET=replace_with_a_long_random_string
-JWT_REFRESH_SECRET=replace_with_another_long_random_string
-JWT_TICKET=replace_with_another_long_random_string
-```
-
-All other values have sensible defaults for Docker.
-
-### 3. Build and start
+### 3. Run the setup script
 
 ```bash
-docker compose up --build
+# Recommended: fix all issues + build + launch the full stack
+bash setup.sh --up
 ```
 
-Docker will:
-1. Install all frontend dependencies (pinned via `package-lock.json`)
-2. Build the React production bundle
-3. Install backend dependencies
-4. Start MongoDB, Redis, and the application server
+The script will automatically:
+1. Verify Docker, Node.js, and npm are available
+2. Detect placeholder JWT secrets and **replace them with cryptographically secure random values**
+3. Correct the `PORT` value for Docker compatibility
+4. Fix known Dockerfile issues (see [Known Issues Fixed](#known-issues-fixed))
+5. Validate `docker-compose.yml` syntax
+6. Build the Docker images (no cache)
+7. Start MongoDB, Redis, and the application server
+8. Wait for health checks to pass and print live status
 
 ### 4. Open the application
 
@@ -141,19 +139,39 @@ Docker will:
 | Attendance QR Form | http://localhost:5000/attendanceForm/index.html |
 | Backend API | http://localhost:5000/api |
 
-### Useful Docker commands
+> **Default admin credentials** (auto-seeded on first boot):
+> - Email: `admin@iac.com`
+> - Password: `Admin@1234`
+
+### Useful script commands
 
 ```bash
-# Start in detached (background) mode
+bash setup.sh           # Safe read-only audit — checks everything, changes nothing
+bash setup.sh --fix     # Auto-fix all detected issues (no Docker needed)
+bash setup.sh --up      # Fix + build + launch full Docker stack
+bash setup.sh --logs    # Tail live logs from running stack
+bash setup.sh --down    # Stop containers (volumes preserved)
+bash setup.sh --reset   # Stop + wipe ALL data volumes ⚠️
+```
+
+### Manual Docker commands (alternative)
+
+If you prefer raw Docker commands after manually setting up `.env`:
+
+```bash
+# Build and start (foreground)
+docker compose up --build
+
+# Start in background
 docker compose up -d --build
 
-# View live logs
+# View logs
 docker compose logs -f app
 
-# Stop everything
+# Stop (keep data)
 docker compose down
 
-# Stop and wipe all data volumes (full reset)
+# Stop + wipe volumes
 docker compose down -v
 ```
 
@@ -222,7 +240,9 @@ npm run dev --workspace=frontend
 cd frontend && npm run dev
 ```
 
-Frontend dev server runs at **http://localhost:3000** with HMR and API proxied to `localhost:5000`.
+Frontend dev server runs at **http://localhost:5000** (Vite) with HMR and API proxied to `localhost:5000` backend.
+
+> ⚠️ **Port note**: The `.env` `PORT` variable must be `5000` to match the Vite proxy target. Running `bash setup.sh --fix` will correct this automatically.
 
 ### 6. Access the app
 
@@ -351,11 +371,62 @@ server {
 
 ### Security checklist for production
 
-- [ ] Set `USE_MEMORY_DB=false` and use a secured `MONGO_URL` (with TLS)
-- [ ] Replace all placeholder JWT secrets with long random strings
-- [ ] Never commit `.env` to source control (already in `.gitignore`)
+- [ ] Run `bash setup.sh --fix` to auto-generate secure JWT secrets before first deploy
+- [ ] Set `USE_MEMORY_DB=false` and use a secured `MONGO_URL` (with authentication + TLS)
+- [ ] Never commit `.env` to source control (already excluded in `.gitignore` and `.dockerignore`)
 - [ ] Enable HTTPS via Let's Encrypt / Certbot on your reverse proxy
-- [ ] Set `NODE_ENV=production`
+- [ ] Set `NODE_ENV=production` (default in Docker Compose)
+- [ ] Rotate JWT secrets periodically — re-run `bash setup.sh --fix` to regenerate
+
+---
+
+## 🔧 `setup.sh` Reference
+
+The `setup.sh` script (`bash setup.sh [flag]`) is a self-contained setup, audit, and deployment tool for the project.
+
+### Flags
+
+| Flag | Description |
+|---|---|
+| *(none)* | **Audit mode** — read-only pre-flight check, no files modified |
+| `--fix` | **Fix mode** — auto-correct all detected issues; no Docker required |
+| `--up` | **Deploy mode** — fix issues, build Docker images, start the stack |
+| `--down` | Stop all containers; named volumes (data) are preserved |
+| `--reset` | Stop containers **and delete all volumes** (database + uploads) ⚠️ |
+| `--logs` | Tail live log output from the running stack (`Ctrl+C` to stop) |
+| `--help` | Print usage summary |
+
+### What the script checks & fixes
+
+| Check | Auto-fix |
+|---|---|
+| `.env` missing → copies from `.env.example` | ✅ |
+| Placeholder JWT secrets (`your_jwt_*`) → generates 64-byte hex secrets via `crypto` | ✅ |
+| `PORT=3000` in `.env` → corrects to `5000` to match Vite proxy | ✅ |
+| `--ignore-scripts` on backend Dockerfile install → removes it so `mongodb-memory-server` binary downloads correctly | ✅ |
+| Duplicate `backend/package-lock.json` alongside root lockfile → backs up and removes it | ✅ |
+| `@/` path alias used in source but missing from `vite.config.ts` → adds `resolve.alias` | ✅ |
+| Docker daemon not running | ⚠️ Reports with instructions |
+| `docker-compose.yml` YAML syntax error | ⚠️ Reports errors |
+| Missing `.dockerignore` exclusions | ⚠️ Reports |
+| TypeScript `noEmit` / `jsx` config | ⚠️ Reports |
+
+### Safety features
+
+- All file modifications are **backed up** with a timestamped `.bak` extension before changes are applied
+- **Idempotent** — safe to run multiple times; already-fixed issues are silently skipped
+- Uses `set -euo pipefail` — exits immediately on any unhandled error
+- File patching uses **Node.js** (cross-platform; no `sed` quoting issues on Windows/Git Bash)
+- `--reset` requires typing `yes` to confirm before destroying data
+
+### Known Issues Fixed
+
+The following issues were identified during code review and are automatically resolved by `bash setup.sh --fix`:
+
+1. **`--ignore-scripts` blocked `mongodb-memory-server` binary** — The backend `npm ci` step in `Dockerfile` used `--ignore-scripts`, preventing the MongoMemoryServer binary download. If MongoDB is slow to start in Docker, the fallback would crash instead of recovering.
+2. **Placeholder JWT secrets** — `.env.example` ships with `your_jwt_*` placeholders that would be injected directly into the container, making tokens trivially forgeable.
+3. **`PORT=3000` vs Docker's `PORT=5000`** — The `.env` default `PORT=3000` would mismatch the Vite dev proxy target (`5000`) during local development.
+4. **Duplicate `backend/package-lock.json`** — The Dockerfile only reads the root lockfile; the backend's own lockfile was silently ignored, risking version drift between local and container installs.
 
 ---
 
