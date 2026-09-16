@@ -1,273 +1,365 @@
-# 🇬🇭 🇰🇷 Ghana-Korea IAC - Information Access Center
+# 🇬🇭 🇰🇷 Ghana-Korea IAC — Information Access Center
 
-> **Operations & Management Platform for Ghana-Korea IAC - Information Access Center | Internet Lounge Management, Mobile Member Access Passes, QR Attendance Tracking, and Device Monitoring.**
+> **Operations & Management Platform for Ghana-Korea IAC | Internet Lounge Management, Mobile Member Access Passes, QR Attendance Tracking, and Device Monitoring.**
 
 ---
 
 ## 📋 Table of Contents
-1. [Project Overview & Scope](#-project-overview--scope)
+
+1. [Project Overview](#-project-overview)
 2. [Key Features](#-key-features)
 3. [System Architecture & Tech Stack](#-system-architecture--tech-stack)
-4. [The Development Journey](#-the-development-journey)
-5. [System Requirements](#-system-requirements)
-6. [Installation & Setup Guide](#-installation--setup-guide)
-   - [1. Root & Monorepo Setup](#1-root--monorepo-setup)
-   - [2. Backend Service Setup](#2-backend-service-setup)
-   - [3. Admin Dashboard Frontend Setup](#3-admin-dashboard-frontend-setup)
-   - [4. Mobile Web Application Setup](#4-mobile-web-application-setup)
-   - [5. Attendance QR Form Setup](#5-attendance-qr-form-setup)
-7. [Environment Variables Reference](#-environment-variables-reference)
-8. [API Endpoints Reference](#-api-endpoints-reference)
-9. [Agents & Device Status Integration](#-agents--device-status-integration)
-10. [Production Deployment & Best Practices](#-production-deployment--best-practices)
+4. [Quick Start — Docker (Recommended)](#-quick-start--docker-recommended)
+5. [Manual Setup — Local Development](#-manual-setup--local-development)
+6. [Environment Variables Reference](#-environment-variables-reference)
+7. [API Endpoints Reference](#-api-endpoints-reference)
+8. [Agents & Device Status Integration](#-agents--device-status-integration)
+9. [Production Deployment](#-production-deployment)
 
 ---
 
-## 🌐 Project Overview & Scope
+## 🌐 Project Overview
 
-The **Ghana-Korea IAC (Information Access Center) Management System** 🇬🇭 🇰🇷 is an end-to-end operational software suite designed for modern Internet Business Centers, Academic Tech Lounges, and Hub Workspaces.
+The **Ghana-Korea IAC Management System** is an end-to-end operational software suite designed for modern Internet Business Centers, Academic Tech Lounges, and Hub Workspaces.
 
 It unifies **mobile member identity**, **frictionless check-ins via digital day passes or QR scanning**, **staff lounge management**, **network internet token generation**, and **real-time hardware device monitoring** into a single cohesive platform.
 
-### Core Objectives:
-* **Frictionless Member Onboarding & Check-in**: Mobile users sign up with their name, phone number, and ID card to generate verified digital access passes.
-* **Instant Lounge Logging**: Passes or direct QR scans immediately record visitor entry into the central Internet Lounge Database.
-* **Staff Admin Control**: Staff members confirm pending mobile tickets, log walk-ins, track session durations, enforce timeouts, and view capacity metrics.
-* **Resilient Infrastructure**: Runs seamlessly with MongoDB or zero-config In-Memory Mongo for instant deployment.
+### Core Objectives
+- **Frictionless Member Onboarding & Check-in** — Mobile users sign up with name, phone, and ID to generate verified digital access passes.
+- **Instant Lounge Logging** — Passes or direct QR scans immediately record visitor entry into the central database.
+- **Staff Admin Control** — Confirm pending tickets, log walk-ins, track sessions, enforce timeouts, and view capacity metrics.
+- **Resilient Infrastructure** — Runs with MongoDB Atlas, a local MongoDB instance, or zero-config in-memory Mongo for instant deployment.
 
 ---
 
 ## ✨ Key Features
 
 ### 📱 1. IAC Mobile App (Member Access Pass)
-* **User Authentication**: Secure JWT-based registration and login collecting full name, email, phone number, and ID/Student ID.
-* **Digital Access Pass Generator**: Generates dynamic day passes with QR codes, timestamp verification, and single-click check-in requests.
-* **User Data Auto-Fill**: Automatically fills user personal credentials when requesting lounge check-ins or scanning QR attendance forms.
-* **Gamified Loyalty System**: Tracks member check-in streaks, total visit counts, and displays a community leaderboard.
-* **Mobile Responsiveness**: Designed with responsive dark-mode styling, fixed bottom navigation bar, and smooth touch-optimized transitions.
+- Secure JWT-based registration and login (name, email, phone, ID/Student ID)
+- Dynamic day passes with QR codes and single-click check-in requests
+- Auto-fill user credentials on lounge check-in and QR attendance forms
+- Gamified loyalty system — streaks, visit counts, community leaderboard
+- Responsive dark-mode PWA with touch-optimised bottom navigation
 
 ### 💻 2. Staff Admin Dashboard
-* **Real-Time Capacity Tracker**: Live counter displaying active visitors, total daily check-ins, and peak hours.
-* **Pending Ticket Confirmations**: Instant notifications for mobile pass requests allowing staff to confirm check-ins with 1-click.
-* **Walk-In & Manual Entry**: Dedicated form for manual visitor logging (Name, Identifier, Contact, Gender, Signature).
-* **Automated Time-out & Session Management**: Tracks visitor elapsed time, highlights expired sessions, and allows batch or individual time-outs.
-* **Search & Export**: Multi-filter search (by name, ID, or time) and export capabilities for reporting.
+- Live capacity tracker — active visitors, daily check-ins, peak hours
+- Instant pending ticket confirmations (1-click)
+- Manual walk-in entry form (Name, ID, Contact, Gender, Signature)
+- Automated session timeout tracking with batch or individual controls
+- Multi-filter search (name, ID, time) and CSV/PDF export
 
 ### 📱 3. Attendance QR Code Form
-* **Contactless Sign-in**: Standalone lightweight web application accessible via scanned QR codes displayed at the lounge front desk.
-* **Auto-Prefill Integration**: Detects logged-in mobile user credentials from local storage and pre-fills name, phone number, and ID.
-* **Direct Database Integration**: Automatically creates an entry in the Internet Lounge database and credits user streak points upon submission.
+- Standalone contactless sign-in page launched via QR scan at the front desk
+- Auto-prefills logged-in mobile member credentials
+- Directly records entry in the lounge database and credits streak points
 
-### 📊 4. Network, Reports & Device Status Agents
-* **Internet Vouchers / Tokens**: Generate and print time-limited bandwidth tokens for visitors.
-* **Device Status Agent**: Real-time status monitoring for network hardware, PCs, and access points.
-* **Analytics & Reports**: Historical occupancy logs, peak-hour breakdown, and CSV/PDF export capabilities.
+### 📊 4. Reports, Network & Device Monitoring
+- Internet voucher / bandwidth token generation
+- Real-time device status agents (PCs, routers, access points)
+- Historical occupancy analytics and peak-hour breakdown
 
 ---
 
 ## 🏗️ System Architecture & Tech Stack
 
 ```
-                                  +-----------------------+
-                                  |   Mobile Member App   |
-                                  | (PWA / HTML5 / JS)   |
-                                  +-----------+-----------+
-                                              |
-                                              v
-+-----------------------+         +-----------+-----------+         +-----------------------+
-|  Attendance QR Form   | ------> |   Node.js / Express   | <------ |    Admin Dashboard    |
-| (Stand-alone Web App) |         |     Backend API       |         |   (React + Vite + TS) |
-+-----------------------+         +-----------+-----------+         +-----------------------+
-                                              |
-                                              v
-                                  +-----------+-----------+
-                                  |    MongoDB / Mongoose |
-                                  | (In-Memory / Atlas)   |
-                                  +-----------------------+
+                              +-----------------------+
+                              |   Mobile Member App   |
+                              |  (HTML5 / JS / PWA)   |
+                              +-----------+-----------+
+                                          |
+                                          v
++-----------------------+    +-----------+-----------+    +-----------------------+
+|  Attendance QR Form   |--->|  Node.js / Express 5  |<---|    Admin Dashboard    |
+| (Stand-alone Web App) |    |     Backend API        |    |  (React 18 + Vite 8) |
++-----------------------+    +-----------+-----------+    +-----------------------+
+                                          |
+                              +-----------+-----------+
+                              |  MongoDB + Redis Cache |
+                              |  (Local / Atlas / Mem) |
+                              +-----------------------+
 ```
 
-### Stack Breakdown:
-* **Frontend Admin Dashboard**: React 18, TypeScript, Vite, Tailwind CSS, Lucide Icons, Recharts.
-* **Mobile App & Public Forms**: Native HTML5, CSS3 (Custom Variables & Flexbox/Grid), ES6+ JavaScript, Web Storage API.
-* **Backend API Server**: Node.js, Express.js, Mongoose ORM, jsonwebtoken (JWT), bcryptjs, cors, dotenv.
-* **Database Layer**: MongoDB / Mongoose with `mongodb-memory-server` fallback for zero-dependency local/preview execution.
+### Stack Breakdown
+
+| Layer | Technology |
+|---|---|
+| Admin Dashboard | React 18, TypeScript, Vite 8, Tailwind CSS, Recharts, Lucide Icons |
+| Mobile & Public Forms | Native HTML5, CSS3, ES6+ JavaScript |
+| Backend API | Node.js, Express 5, Socket.io, Mongoose, JWT, bcryptjs |
+| Database | MongoDB 7 / `mongodb-memory-server` fallback |
+| Cache / Sessions | Redis 7 |
+| Container Runtime | Docker + Docker Compose |
 
 ---
 
-## 📖 The Development Journey
+## 🐳 Quick Start — Docker (Recommended)
 
-1. **Phase 1: Core Lounge System**:
-   * Designed the backend model for visitor check-ins (`InternetLounge`) with time-in, time-out, signature, contact number, and identification fields.
-   * Built the React administrative dashboard to replace pen-and-paper visitor logs.
+> **Prerequisites**: [Docker Desktop](https://www.docker.com/products/docker-desktop/) installed and running. Nothing else needed.
 
-2. **Phase 2: Mobile App & Digital Passes**:
-   * Developed the mobile access pass (`/IACMOBILE APP/`) allowing members to request digital check-in passes.
-   * Implemented JWT authentication and user profile models (`MobileUserProfile`).
-
-3. **Phase 3: QR Code Attendance Integration**:
-   * Created dynamic QR token generation for front-desk displays.
-   * Built the standalone `/attendanceForm/` that submits scanned attendance directly to the backend database.
-
-4. **Phase 4: User Personal Data & Seamless Auto-Fill**:
-   * Expanded member profiles to collect phone numbers and ID numbers upon registration.
-   * Linked mobile member profiles with the ticket submission and attendance form to eliminate redundant data entry for users.
-
-5. **Phase 5: Resilient Production Setup & Mobile Responsiveness**:
-   * Fixed mobile viewport height bugs, bottom navigation overlaps, and QR attendance backend routing.
-   * Configured fallback memory DB support and full environment variable handling.
-
----
-
-## ⚙️ System Requirements
-
-* **Operating System**: Linux, macOS, or Windows
-* **Node.js**: `v18.0.0` or higher
-* **npm**: `v9.0.0` or higher
-* **MongoDB** *(Optional)*: Community Edition v6.0+ or MongoDB Atlas connection string (In-Memory database runs automatically if no URL is provided).
-
----
-
-## 📦 Installation & Setup Guide
-
-### 1. Root & Monorepo Setup
-
-Clone the repository and install top-level dependencies:
+### 1. Clone the repository
 
 ```bash
-git clone https://github.com/RavigaBage/THEOPHILUS-TETTEH.git
-cd THEOPHILUS-TETTEH
-npm install
+git clone https://github.com/RavigaBage/IACMSY26.git
+cd IACMSY26
 ```
 
----
-
-### 2. Backend Service Setup
-
-Navigate to the `backend` directory, set up environment variables, and start the server:
+### 2. Configure environment variables
 
 ```bash
-cd backend
-npm install
-
-# Copy example environment variables
-cp ../.env.example .env
+cp .env.example .env
 ```
 
-Edit `.env` as needed:
+Open `.env` and fill in your secrets (the only required changes are the JWT keys):
+
 ```env
-PORT=3000
-NODE_ENV=production
-MONGO_URL=mongodb://localhost:27017/iac_lounge_db
-USE_MEMORY_DB=true
-JWT_SECRET=your_super_secret_jwt_key
-JWT_REFRESH_SECRET=your_super_secret_refresh_key
+JWT_SECRET=replace_with_a_long_random_string
+JWT_REFRESH_SECRET=replace_with_another_long_random_string
+JWT_TICKET=replace_with_another_long_random_string
 ```
 
-Run the backend server:
-```bash
-# Development mode with auto-reload
-npm run dev
+All other values have sensible defaults for Docker.
 
-# Production mode
-npm start
+### 3. Build and start
+
+```bash
+docker compose up --build
+```
+
+Docker will:
+1. Install all frontend dependencies (pinned via `package-lock.json`)
+2. Build the React production bundle
+3. Install backend dependencies
+4. Start MongoDB, Redis, and the application server
+
+### 4. Open the application
+
+| Service | URL |
+|---|---|
+| Admin Dashboard | http://localhost:5000 |
+| Mobile App | http://localhost:5000/IACMOBILE%20APP/index.html |
+| Attendance QR Form | http://localhost:5000/attendanceForm/index.html |
+| Backend API | http://localhost:5000/api |
+
+### Useful Docker commands
+
+```bash
+# Start in detached (background) mode
+docker compose up -d --build
+
+# View live logs
+docker compose logs -f app
+
+# Stop everything
+docker compose down
+
+# Stop and wipe all data volumes (full reset)
+docker compose down -v
 ```
 
 ---
 
-### 3. Admin Dashboard Frontend Setup
+## 🛠️ Manual Setup — Local Development
 
-Navigate to the `frontend` directory and start the Vite dev server or build for production:
+Use this method if you want hot-reload during development.
+
+### Prerequisites
+
+- **Node.js** `v22+` (check with `node -v`)
+- **npm** `v10+` (check with `npm -v`)
+- **MongoDB** Community Edition v7+ *(optional — the server falls back to in-memory DB automatically)*
+- **Redis** v7+ *(optional — required for session caching features)*
+
+### 1. Clone
 
 ```bash
-cd frontend
+git clone https://github.com/RavigaBage/IACMSY26.git
+cd IACMSY26
+```
+
+### 2. Configure environment
+
+```bash
+cp .env.example .env
+```
+
+Edit `.env` — at minimum set your JWT secrets. For local dev, leave `USE_MEMORY_DB=true` to skip needing a MongoDB installation.
+
+### 3. Install all workspace dependencies
+
+Run from the **project root** (installs both `backend` and `frontend` workspaces):
+
+```bash
 npm install
-
-# Start Vite Development Server
-npm run dev
-
-# Build for Production
-npm run build
 ```
 
----
+> ⚠️ **Windows users**: If the install stalls (due to `mongodb-memory-server` downloading a binary), run `npm install --ignore-scripts` and then `npm install` again — or just install each workspace separately:
+> ```bash
+> npm install --workspace=backend
+> npm install --workspace=frontend
+> ```
 
-### 4. Mobile Web Application Setup
+### 4. Start the backend
 
-The IAC Mobile App is located in `/IACMOBILE APP/` and served statically by the Express backend or Vite server:
+```bash
+# Development with hot-reload
+npm run dev --workspace=backend
 
-* **Entry Point**: `http://localhost:3000/IACMOBILE APP/index.html`
-* **Sign In / Registration**: `http://localhost:3000/IACMOBILE APP/login.html`
+# or from inside the backend folder
+cd backend && npm run dev
+```
 
-No build step is required for the mobile app — simply open it in any modern mobile browser or save it to your home screen as a Web App.
+Backend runs at **http://localhost:5000**
 
----
+### 5. Start the frontend dev server
 
-### 5. Attendance QR Form Setup
+In a **new terminal tab**:
 
-The attendance form is located in `/attendanceForm/`:
+```bash
+npm run dev --workspace=frontend
 
-* **Entry Point**: `http://localhost:3000/attendanceForm/index.html`
+# or from inside the frontend folder
+cd frontend && npm run dev
+```
 
-Visitors can scan the QR code generated in the Admin Dashboard under **"Attendance QR"** to launch this form directly.
+Frontend dev server runs at **http://localhost:3000** with HMR and API proxied to `localhost:5000`.
+
+### 6. Access the app
+
+| Service | URL |
+|---|---|
+| Admin Dashboard (dev) | http://localhost:3000 |
+| Mobile App | http://localhost:5000/IACMOBILE%20APP/index.html |
+| Attendance QR Form | http://localhost:5000/attendanceForm/index.html |
+| Backend API | http://localhost:5000/api |
+
+### Building for production manually
+
+```bash
+# Build the frontend
+npm run build --workspace=frontend
+
+# Start the backend (it serves the built frontend from frontend/dist)
+npm start --workspace=backend
+```
 
 ---
 
 ## 🔑 Environment Variables Reference
 
-| Variable Name | Description | Default / Example |
-| :--- | :--- | :--- |
-| `PORT` | Express Server HTTP Port | `3000` |
-| `NODE_ENV` | Application Environment Mode | `production` |
-| `MONGO_URL` | MongoDB Connection URI | `mongodb://localhost:27017/iac_lounge_db` |
-| `USE_MEMORY_DB` | Fallback to Mongo Memory Server | `true` |
-| `JWT_SECRET` | Secret key for access tokens | `your_jwt_secret` |
-| `JWT_REFRESH_SECRET` | Secret key for refresh tokens | `your_jwt_refresh_secret` |
+Copy `.env.example` to `.env` and edit as needed.
+
+| Variable | Description | Default |
+|---|---|---|
+| `BACKEND_PORT` | Express server port | `5000` |
+| `NODE_ENV` | Environment mode | `production` |
+| `MONGO_URL` | MongoDB connection URI | `mongodb://localhost:27017/iac_lounge_db` |
+| `USE_MEMORY_DB` | Use in-memory MongoDB fallback | `true` |
+| `REDIS_URL` | Redis connection URI | *(auto-set in Docker)* |
+| `JWT_SECRET` | **Required** — Access token signing key | — |
+| `JWT_REFRESH_SECRET` | **Required** — Refresh token signing key | — |
+| `JWT_TICKET` | **Required** — Ticket token signing key | — |
 | `JWT_EXPIRES_IN` | Access token lifespan | `1d` |
 | `JWT_REFRESH_EXPIRES_IN` | Refresh token lifespan | `7d` |
+| `GEMINI_API_KEY` | Google Gemini API key (optional AI features) | — |
 
 ---
 
 ## 📡 API Endpoints Reference
 
-### 🔐 Mobile Auth Endpoints (`/api/iac-mobile/auth`)
-* `POST /register`: Registers a new mobile member (`name`, `email`, `password`, `phoneNumber`, `studentId`).
-* `POST /login`: Authenticates mobile member and returns JWT tokens + user profile.
-* `GET /verify`: Validates JWT token and returns current user details.
+### 🔐 Mobile Auth (`/api/iac-mobile/auth`)
+| Method | Route | Description |
+|---|---|---|
+| `POST` | `/register` | Register mobile member (`name`, `email`, `password`, `phoneNumber`, `studentId`) |
+| `POST` | `/login` | Authenticate and return JWT tokens + profile |
+| `GET` | `/verify` | Validate token and return current user |
 
-### 🎫 Checkin Tickets Endpoints (`/api/iac-mobile/checkin-tickets`)
-* `POST /`: Creates a pending checkin ticket pass. Auto-fills user phone and ID number.
-* `GET /`: Lists checkin tickets for admin dashboard.
-* `POST /:id/confirm`: Confirms a pending ticket, logs visitor into `InternetLounge`, and increments streak.
+### 🎫 Check-in Tickets (`/api/iac-mobile/checkin-tickets`)
+| Method | Route | Description |
+|---|---|---|
+| `POST` | `/` | Create a pending check-in ticket (auto-fills phone & ID) |
+| `GET` | `/` | List all tickets (admin) |
+| `POST` | `/:id/confirm` | Confirm ticket → log to lounge DB → increment streak |
 
-### 🛋️ Internet Lounge Operations (`/api/lounge`)
-* `GET /`: Returns active visitors and daily summary.
-* `POST /`: Creates walk-in visitor entry.
-* `PUT /time-out/:id`: Sets time-out timestamp for an active visitor.
+### 🛋️ Internet Lounge (`/api/lounge`)
+| Method | Route | Description |
+|---|---|---|
+| `GET` | `/` | Active visitors + daily summary |
+| `POST` | `/` | Create walk-in entry |
+| `PUT` | `/time-out/:id` | Set timeout for active visitor |
 
-### 📱 Attendance QR Endpoints (`/api/public/qrcodes`)
-* `POST /active/submit`: Directly submits attendance entry to Lounge DB from scanned QR form.
+### 📱 Attendance QR (`/api/public/qrcodes`)
+| Method | Route | Description |
+|---|---|---|
+| `POST` | `/active/submit` | Submit attendance directly from scanned QR form |
 
 ---
 
 ## 📡 Agents & Device Status Integration
 
-* **Internet Voucher Generator**: Integrates with local router/captive portal endpoints to generate time-limited WiFi access tokens.
-* **Status Agent**: Periodically checks connected hardware units (PCs, routers, printers) and updates the Devices page in the Admin panel.
+- **Internet Voucher Generator** — Integrates with local router/captive portal endpoints to generate time-limited WiFi access tokens.
+- **Status Agent** — Periodically checks connected hardware (PCs, routers, printers) via Socket.io and updates the Devices page in real time.
+
+Agents connect to the backend via WebSocket (`socket.io`) using the `agent:register` event, identified by `deviceId`.
 
 ---
 
-## 🛡️ Production Deployment & Best Practices
+## 🛡️ Production Deployment
 
-1. **Process Management**: Use `pm2` or Docker to manage Node.js process lifecycle in production.
-   ```bash
-   pm2 start backend/server.js --name "iac-backend"
-   ```
-2. **Reverse Proxy (Nginx)**: Proxy requests on port 80/443 to the Node app on port 3000.
-3. **Database Security**: When moving to production, set `USE_MEMORY_DB=false` and provide a secured `MONGO_URL` with TLS enabled.
-4. **Environment Secrets**: Never commit actual JWT keys or passwords to source control. Use `.env` files or platform secret managers (e.g. Cloud Run, AWS Secrets Manager).
+### Docker (recommended)
+
+The included `docker-compose.yml` is production-ready with:
+- Multi-stage build (lean final image — no dev deps, no source maps)
+- MongoDB and Redis with health checks and persistent named volumes
+- Non-root container user for security
+- Automatic restart policies (`unless-stopped`)
+
+```bash
+docker compose up -d --build
+```
+
+### Manual / PM2
+
+```bash
+# Build frontend
+npm run build --workspace=frontend
+
+# Start backend with PM2
+npm install -g pm2
+pm2 start backend/server.js --name "iac-backend"
+pm2 save
+pm2 startup
+```
+
+### Reverse Proxy (Nginx example)
+
+```nginx
+server {
+    listen 80;
+    server_name yourdomain.com;
+
+    location / {
+        proxy_pass http://localhost:5000;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection 'upgrade';
+        proxy_set_header Host $host;
+        proxy_cache_bypass $http_upgrade;
+    }
+}
+```
+
+### Security checklist for production
+
+- [ ] Set `USE_MEMORY_DB=false` and use a secured `MONGO_URL` (with TLS)
+- [ ] Replace all placeholder JWT secrets with long random strings
+- [ ] Never commit `.env` to source control (already in `.gitignore`)
+- [ ] Enable HTTPS via Let's Encrypt / Certbot on your reverse proxy
+- [ ] Set `NODE_ENV=production`
 
 ---
 
 <div align="center">
-  <b>Ghana-Korea IAC - Information Access Center 🇬🇭 🇰🇷</b> • Powered by Modern Web & Mobile Technologies
+  <b>Ghana-Korea IAC — Information Access Center 🇬🇭 🇰🇷</b><br/>
+  Powered by Modern Web & Mobile Technologies
 </div>
