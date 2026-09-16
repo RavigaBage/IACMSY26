@@ -8,10 +8,15 @@ WORKDIR /build
 # Copy workspace manifests first (layer-cache friendly)
 COPY package.json package-lock.json ./
 COPY frontend/package.json ./frontend/
+COPY backend/package.json ./backend/
 
 # Install ALL workspace deps from the lockfile
 # --ignore-scripts skips mongodb-memory-server binary download (not needed at build time)
-RUN npm ci --ignore-scripts --workspace=frontend
+# Increased timeouts to prevent EIDLETIMEOUT during large frontend installs
+RUN npm config set fetch-retries 5 && \
+    npm config set fetch-retry-mintimeout 20000 && \
+    npm config set fetch-retry-maxtimeout 120000 && \
+    npm ci --ignore-scripts --workspace=frontend
 
 # Copy frontend source
 COPY frontend/ ./frontend/
@@ -29,9 +34,15 @@ WORKDIR /app
 
 # Install only backend workspace deps
 COPY package.json package-lock.json ./
+COPY frontend/package.json ./frontend/
 COPY backend/package.json ./backend/
 
-RUN npm ci --omit=dev --workspace=backend
+# Increased timeouts to prevent EIDLETIMEOUT
+RUN npm config set fetch-retries 5 && \
+    npm config set fetch-retry-mintimeout 20000 && \
+    npm config set fetch-retry-maxtimeout 120000 && \
+    npm ci --omit=dev --workspace=backend && \
+    npm install mongodb-memory-server@^11.2.0 --no-save
 
 # Copy backend source
 COPY backend/ ./backend/

@@ -12,33 +12,32 @@ let accessToken: string | null = null;
 
 export function setAccessToken(token: string | null) {
   accessToken = token;
-  console.log('accessToken')
 }
 export async function refreshAccessToken(): Promise<boolean> {
-    if (!refreshPromise) {
-        refreshPromise = fetch(getUrl('/api/auth/refresh'), {
-            method: "POST",
-            credentials: "include",
-            headers: {
-                "Content-Type": "application/json",
-            },
-        })
-        .then(async (res) => {
-            if (!res.ok) return false;
+  if (!refreshPromise) {
+    refreshPromise = fetch(getUrl('/api/auth/refresh'), {
+      method: "POST",
+      credentials: "include",
+      headers: {
+        "Content-Type": "application/json",
+      },
+    })
+      .then(async (res) => {
+        if (!res.ok) return false;
 
-            const data = await res.json();
+        const data = await res.json();
 
-            setAccessToken(data.access);
+        setAccessToken(data.access);
 
-            return true;
-        })
-        .catch(() => false)
-        .finally(() => {
-            refreshPromise = null;
-        });
-    }
+        return true;
+      })
+      .catch(() => false)
+      .finally(() => {
+        refreshPromise = null;
+      });
+  }
 
-    return refreshPromise;
+  return refreshPromise;
 }
 
 function redirectToLogin() {
@@ -52,10 +51,10 @@ async function request(
   options: RequestInit = {},
   isRetry = false
 ): Promise<any> {
- 
+
   const res = await fetch(getUrl(endpoint), {
     ...options,
-        credentials: "include",
+    credentials: "include",
     headers: {
       "Content-Type": "application/json",
       ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
@@ -68,18 +67,18 @@ async function request(
   if (res.status === 401 && !isRetry && !isAuthEndpoint) {
     const refreshed = await refreshAccessToken();
     if (refreshed) {
-      return request(endpoint, options, true); 
+      return request(endpoint, options, true);
     }
     redirectToLogin();
     throw new Error("Session expired");
   }
-  if(res.status === 400){
+  if (res.status === 400) {
     const errorData = await res.json();
-    console.log(errorData);
     throw new Error(errorData.message || "Bad Request");
   }
   if (!res.ok) throw new Error("API Error");
-  return res.json();
+  const result = await res.json();
+  return result;
 }
 
 export const api = {
@@ -93,12 +92,12 @@ export const api = {
     const res = await fetch(getUrl(endpoint), {
       credentials: "include",
       headers: {
-      "Content-Type": "application/json",
-      ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
-    }
+        "Content-Type": "application/json",
+        ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
+      }
     });
     if (!res.ok) throw new Error("Failed to download file");
-    
+
     // Extract filename from header if available
     const disposition = res.headers.get("content-disposition");
     let filename = fallbackFilename;

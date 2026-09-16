@@ -156,6 +156,10 @@ bash setup.sh --reset   # Stop + wipe ALL data volumes ⚠️
 
 ### Manual Docker commands (alternative)
 
+> ⚠️ **Windows Git Bash Users**: The `docker` command might not be available in Git Bash by default (returning `command not found`). You should either:
+> 1. Use **Command Prompt** or **PowerShell** to run the manual `docker compose` commands below.
+> 2. Or simply use `bash setup.sh --up` in Git Bash, which automatically handles the Docker path for you.
+
 If you prefer raw Docker commands after manually setting up `.env`:
 
 ```bash

@@ -13,7 +13,7 @@ services:
       PORT: 5000
       BACKEND_PORT: 5000
       MONGO_URL: mongodb://mongo:27017/iac_lounge_db
-      USE_MEMORY_DB: "false"
+      USE_MEMORY_DB: "true"
       REDIS_URL: redis://redis:6379
       JWT_SECRET: ${JWT_SECRET}
       JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET}
@@ -25,27 +25,27 @@ services:
       # Persist uploaded files
       - uploads_data:/app/backend/uploads
     depends_on:
-      mongo:
-        condition: service_healthy
+      # mongo:
+      #   condition: service_healthy
       redis:
         condition: service_healthy
     restart: unless-stopped
 
   # ──────────────────────────────────────────────
-  # MongoDB
+  # MongoDB (Commented out to bypass stuck download, using in-memory DB instead)
   # ──────────────────────────────────────────────
-  mongo:
-    image: mongo:7-jammy
-    ports:
-      - "27017:27017"
-    volumes:
-      - mongo_data:/data/db
-    healthcheck:
-      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping')"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-    restart: unless-stopped
+  # mongo:
+  #   image: mongo:7-jammy
+  #   ports:
+  #     - "27017:27017"
+  #   volumes:
+  #     - mongo_data:/data/db
+  #   healthcheck:
+  #     test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping')"]
+  #     interval: 10s
+  #     timeout: 5s
+  #     retries: 5
+  #   restart: unless-stopped
 
   # ──────────────────────────────────────────────
   # Redis

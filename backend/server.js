@@ -23,7 +23,6 @@ const socketService = new SocketService(io);
 socketService.emitToDevice("LAB-PC-01", "cmd:test", {
     message: "Hello from server 🎯"
 });
-connectDB();
 
 app.use(express.json());
 app.set('trust proxy', 1);
@@ -120,6 +119,12 @@ app.get("/test", (req, res) => {
     io.emit("cmd:test", { message:''});
     res.send("Test command sent");
 });
-server.listen(PORT, "0.0.0.0", () => {
-    console.log(`🚀 Server running on port ${PORT}`);
-});
+
+const startServer = async () => {
+    await connectDB();
+    server.listen(PORT, "0.0.0.0", () => {
+        console.log(`🚀 Server running on port ${PORT}`);
+    });
+};
+
+startServer();
