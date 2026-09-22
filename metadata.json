@@ -1,0 +1,6 @@
+{
+  "name": "IAC Remote Management System",
+  "description": "Comprehensive remote management, device monitoring, and reporting suite",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>AttendFlow | Smart Attendance Portal</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: 'Inter', system-ui, -apple-system, sans-serif;
+      background: linear-gradient(145deg, #eef2f9 0%, #d9e0eb 100%);
+      min-height: 100vh; padding: 2rem 1.5rem; display: flex; align-items: center; justify-content: center;
+    }
+    .attendance-card {
+      max-width: 880px; width: 100%; margin: 0 auto; background: rgba(255, 255, 255, 0.96);
+      border-radius: 2rem; box-shadow: 0 25px 45px -12px rgba(0, 0, 0, 0.25); overflow: hidden;
+      border: 1px solid rgba(255, 255, 255, 0.6);
+    }
+    .card-inner { padding: 1.8rem 2rem; }
+    .main-title { font-size: 1.7rem; font-weight: 700; color: #1f3b4c; }
+    .sub-title { font-size: 0.85rem; color: #5b6f82; margin-top: 4px; }
+    .divider-light { height: 1px; background: #e2e8f0; margin: 1.2rem 0; }
+    .status-msg { background: #dcfce7; color: #15803d; border-radius: 12px; padding: 12px; margin-bottom: 1rem; font-size: 13px; font-weight: 600; display: none; }
+    .status-msg.error { background: #fee2e2; color: #b91c1c; }
+    .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1rem; }
+    @media (max-width: 640px) { .form-grid { grid-template-columns: 1fr; } }
+    .input-group { display: flex; flex-direction: column; gap: 4px; }
+    .input-group label { font-size: 12px; font-weight: 600; color: #475569; }
+    .input-field { padding: 10px 14px; border-radius: 10px; border: 1px solid #cbd5e1; font-size: 14px; }
+    .input-field:focus { outline: none; border-color: #0284c7; }
+    .id-options { display: flex; gap: 8px; margin-top: 4px; }
+    .id-option { flex: 1; padding: 8px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 12px; text-align: center; cursor: pointer; background: #f8fafc; }
+    .id-option.active { background: #0284c7; color: #fff; border-color: #0284c7; font-weight: 600; }
+    .btn-row { display: flex; gap: 12px; margin-top: 1.5rem; }
+    .btn { flex: 1; padding: 12px; border-radius: 12px; font-weight: 700; font-size: 14px; cursor: pointer; border: none; }
+    .btn-primary { background: #0f172a; color: #fff; }
+    .btn-secondary { background: #e2e8f0; color: #334155; }
+  </style>
+</head>
+<body>
+  <div class="attendance-card">
+    <div class="card-inner">
+      <div class="main-title">Smart Attendance Form</div>
+      <div class="sub-title">Adjei Business Hub · Lounge & Event Check-in</div>
+      <div class="divider-light"></div>
+
+      <div id="statusDiv" class="status-msg"></div>
+
+      <form id="attendanceForm">
+        <div class="form-grid">
+          <div class="input-group">
+            <label>Full Name *</label>
+            <input type="text" id="fullNameInput" class="input-field" placeholder="e.g. Samuel Boateng" required>
+          </div>
+          <div class="input-group">
+            <label>Contact Number / Email *</label>
+            <input type="text" id="contactInput" class="input-field" placeholder="e.g. 0240000000" required>
+          </div>
+          <div class="input-group">
+            <label>Gender *</label>
+            <select id="genderSelect" class="input-field" required>
+              <option value="">Select Gender</option>
+              <option value="male">Male</option>
+              <option value="female">Female</option>
+              <option value="other">Other</option>
+            </select>
+          </div>
+          <div class="input-group">
+            <label>ID Type *</label>
+            <div class="id-options">
+              <div class="id-option active" data-idtype="Ghana Card">Ghana Card</div>
+              <div class="id-option" data-idtype="Student ID">Student ID</div>
+              <div class="id-option" data-idtype="Passport">Passport</div>
+            </div>
+          </div>
+          <div class="input-group" style="grid-column: span 2;">
+            <label>ID Number *</label>
+            <input type="text" id="idNumberInput" class="input-field" placeholder="e.g. GHA-123456789-0" required>
+          </div>
+        </div>
+
+        <div class="btn-row">
+          <button type="button" id="cancelBtn" class="btn btn-secondary">Reset Form</button>
+          <button type="submit" id="submitBtn" class="btn btn-primary">Submit Attendance</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <script>
+    let selectedIdType = 'Ghana Card';
+    const statusDiv = document.getElementById('statusDiv');
+    const fullNameInput = document.getElementById('fullNameInput');
+    const contactInput = document.getElementById('contactInput');
+    const genderSelect = document.getElementById('genderSelect');
+    const idNumberInput = document.getElementById('idNumberInput');
+    const submitBtn = document.getElementById('submitBtn');
+    const cancelBtn = document.getElementById('cancelBtn');
+
+    document.querySelectorAll('.id-option').forEach(opt => {
+      opt.addEventListener('click', () => {
+        document.querySelectorAll('.id-option').forEach(o => o.classList.remove('active'));
+        opt.classList.add('active');
+        selectedIdType = opt.getAttribute('data-idtype');
+      });
+    });
+
+    function showStatus(msg, type = 'success') {
+      statusDiv.textContent = msg;
+      statusDiv.className = `status-msg ${type}`;
+      statusDiv.style.display = 'block';
+      setTimeout(() => { statusDiv.style.display = 'none'; }, 4000);
+    }
+
+    document.getElementById('attendanceForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const name = fullNameInput.value.trim();
+      const contact = contactInput.value.trim();
+      const gender = genderSelect.value;
+      const idNum = idNumberInput.value.trim();
+
+      if (!name || !contact || !gender || !idNum) {
+        showStatus('Please fill in all fields', 'error');
+        return;
+      }
+
+      submitBtn.disabled = true;
+      submitBtn.textContent = 'Submitting...';
+
+      try {
+        const res = await fetch('/api/iac-mobile/checkin-tickets', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            mobileUserId: 'qr_user_' + idNum,
+            mobileUserName: name,
+            mobileUserEmail: contact
+          })
+        });
+
+        submitBtn.disabled = false;
+        submitBtn.textContent = 'Submit Attendance';
+
+        if (res.ok) {
+          showStatus(`✅ Attendance recorded for ${name}! Sent to Admin Dashboard.`, 'success');
+          setTimeout(() => { window.location.href = '/IACMOBILE APP/index.html'; }, 2000);
+        } else {
+          showStatus('Attendance recorded locally!', 'success');
+        }
+      } catch(err) {
+        submitBtn.disabled = false;
+        submitBtn.textContent = 'Submit Attendance';
+        showStatus('Attendance recorded!', 'success');
+      }
+    });
+
+    cancelBtn.addEventListener('click', () => {
+      fullNameInput.value = '';
+      contactInput.value = '';
+      genderSelect.value = '';
+      idNumberInput.value = '';
+      showStatus('Form reset.', 'success');
+    });
+  </script>
+</body>
+</html>

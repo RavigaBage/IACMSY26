@@ -1,0 +1,368 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Mobile Sign In | IAC Mobile App</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink:#12201B; --ink-2:#1A2C24; --ink-3:#223830;
+    --ticket:#F4EEDF; --ticket-2:#E9E0C9; --ticket-line:#D9CDA9;
+    --signal:#3FC7B8; --signal-dark:#1D8478;
+    --marigold:#FFC24B; --marigold-dark:#8A6106;
+    --graphite:#8FA096; --paper-text:#1B2B24;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0; background:#0A130F; font-family:'Inter',sans-serif;
+    display:flex; justify-content:center; padding:32px 12px;
+    min-height:100vh; color:#fff;
+  }
+  .frame{
+    width:390px; background:var(--ink); border-radius:44px;
+    padding:14px; box-shadow:0 30px 60px rgba(0,0,0,0.5);
+    position:relative;
+  }
+  .screen{
+    background:linear-gradient(180deg, var(--ink) 0%, var(--ink-2) 100%);
+    border-radius:32px; overflow:hidden; min-height:760px;
+    display:flex; flex-direction:column; position:relative;
+    padding:0 20px 24px;
+  }
+  .statusbar{ display:flex; justify-content:space-between; padding:16px 2px 12px; color:var(--graphite); font-family:'IBM Plex Mono',monospace; font-size:12px; }
+  
+  .brand-header{ text-align:center; margin:24px 0 20px; }
+  .wordmark{ font-family:'Space Grotesk',sans-serif; font-weight:700; font-size:26px; color:var(--ticket); letter-spacing:-0.02em; }
+  .wordmark span{ color:var(--signal); }
+  .tagline{ font-size:12px; color:var(--graphite); margin-top:4px; font-family:'IBM Plex Mono',monospace; }
+
+  .auth-tabs{ display:flex; background:var(--ink-3); border:1px solid #2C4238; border-radius:14px; padding:4px; margin-bottom:20px; }
+  .tab-btn{ flex:1; background:transparent; border:none; color:var(--graphite); padding:10px; font-family:'Space Grotesk',sans-serif; font-weight:700; font-size:13px; border-radius:10px; cursor:pointer; transition:all 0.2s; }
+  .tab-btn.active{ background:var(--signal); color:#04342C; }
+
+  .form-card{ background:var(--ink-3); border:1px solid #2C4238; border-radius:18px; padding:20px; box-shadow:0 8px 20px rgba(0,0,0,0.25); }
+  .field-group{ margin-bottom:14px; }
+  .field-group label{ display:block; font-size:11px; color:var(--graphite); font-family:'IBM Plex Mono',monospace; text-transform:uppercase; margin-bottom:6px; letter-spacing:0.04em; }
+  .input-field{
+    width:100%; background:#0A130F; border:1px solid #2C4238; border-radius:10px;
+    padding:12px 14px; color:#fff; font-family:'Inter',sans-serif; font-size:13px;
+    outline:none; transition:border-color 0.2s;
+  }
+  .input-field:focus{ border-color:var(--signal); }
+  
+  .submit-btn{
+    width:100%; background:var(--signal); color:#04342C; border:none;
+    font-family:'Space Grotesk',sans-serif; font-weight:700; font-size:14px;
+    padding:14px; border-radius:12px; cursor:pointer; margin-top:10px;
+    transition:transform 0.15s, opacity 0.2s;
+    display:flex; justify-content:center; align-items:center; gap:8px;
+  }
+  .submit-btn:hover{ opacity:0.9; }
+  .submit-btn:active{ transform:scale(0.98); }
+  .submit-btn:disabled{ opacity:0.5; cursor:not-allowed; }
+
+  .demo-box{ margin-top:20px; background:rgba(255,194,75,0.08); border:1px dashed var(--marigold); border-radius:12px; padding:12px; }
+  .demo-title{ font-size:11px; color:var(--marigold); font-family:'IBM Plex Mono',monospace; text-transform:uppercase; font-weight:700; margin-bottom:8px; }
+  .demo-btn{ width:100%; background:var(--ink-2); border:1px solid #3A5246; color:var(--ticket); font-size:11px; font-family:'IBM Plex Mono',monospace; padding:8px 10px; border-radius:8px; cursor:pointer; text-align:left; margin-bottom:6px; transition:border-color 0.2s; display:flex; justify-content:space-between; align-items:center; }
+  .demo-btn:hover{ border-color:var(--marigold); }
+  .demo-btn:last-child{ margin-bottom:0; }
+
+  .toast{
+    position:absolute; bottom:20px; left:20px; right:20px; background:var(--marigold); color:#412402;
+    padding:12px 16px; border-radius:12px; font-size:12px; font-weight:600; text-align:center;
+    display:none; box-shadow:0 8px 16px rgba(0,0,0,0.3); z-index:100;
+  }
+
+  .hidden{ display:none !important; }
+  .fadein{ animation:fadeIn 0.3s cubic-bezier(.2,.8,.3,1); }
+  @keyframes fadeIn{ from{ opacity:0; transform:translateY(8px); } to{ opacity:1; transform:translateY(0); } }
+</style>
+</head>
+<body>
+
+<div class="frame">
+  <div class="screen">
+    <div class="statusbar">
+      <span id="clock">09:41</span>
+      <span>IAC MOBILE</span>
+    </div>
+
+    <div class="brand-header">
+      <div class="wordmark">IAC<span>.mobile</span></div>
+      <div class="tagline">Adjei Business Hub Access Pass</div>
+    </div>
+
+    <div class="auth-tabs">
+      <button class="tab-btn active" id="tabLoginBtn" onclick="switchTab('login')">Sign In</button>
+      <button class="tab-btn" id="tabRegisterBtn" onclick="switchTab('register')">Register</button>
+    </div>
+
+    <!-- LOGIN FORM -->
+    <div class="form-card fadein" id="loginCard">
+      <form id="loginForm" onsubmit="handleLogin(event)">
+        <div class="field-group">
+          <label for="loginEmail">Email Address</label>
+          <input type="email" id="loginEmail" class="input-field" placeholder="your.email@example.com" required>
+        </div>
+        <div class="field-group">
+          <label for="loginPassword">Password</label>
+          <input type="password" id="loginPassword" class="input-field" placeholder="••••••••" required>
+        </div>
+        <button type="submit" class="submit-btn" id="loginSubmitBtn">
+          <span>Sign In to Mobile App</span>
+        </button>
+      </form>
+    </div>
+
+    <!-- REGISTER FORM -->
+    <div class="form-card hidden fadein" id="registerCard">
+      <form id="registerForm" onsubmit="handleRegister(event)">
+        <div class="field-group">
+          <label for="regName">Full Name</label>
+          <input type="text" id="regName" class="input-field" placeholder="Alex Johnson" required>
+        </div>
+        <div class="field-group">
+          <label for="regEmail">Email Address</label>
+          <input type="email" id="regEmail" class="input-field" placeholder="alex.johnson@example.com" required>
+        </div>
+        <div class="field-group">
+          <label for="regPhone">Phone / Contact Number</label>
+          <input type="tel" id="regPhone" class="input-field" placeholder="0241234567" required>
+        </div>
+        <div class="field-group">
+          <label for="regStudentId">Student ID / ID Number</label>
+          <input type="text" id="regStudentId" class="input-field" placeholder="10987654" required>
+        </div>
+        <div class="field-group">
+          <label for="regPassword">Password (min 6 chars)</label>
+          <input type="password" id="regPassword" class="input-field" placeholder="••••••••" minlength="6" required>
+        </div>
+        <div class="field-group">
+          <label for="regPasswordConfirm">Confirm Password</label>
+          <input type="password" id="regPasswordConfirm" class="input-field" placeholder="••••••••" minlength="6" required>
+        </div>
+        <button type="submit" class="submit-btn" id="regSubmitBtn">
+          <span>Create Mobile Account</span>
+        </button>
+      </form>
+    </div>
+
+    <!-- QUICK DEMO LOGINS -->
+    <div class="demo-box">
+      <div class="demo-title">⚡ Fast Demo Logins</div>
+      <button class="demo-btn" onclick="fillDemo('alex.johnson@example.com', 'mobile123', 'Alex Johnson')">
+        <span>Alex Johnson (Member)</span>
+        <span style="color:var(--signal);">Fill & Sign In</span>
+      </button>
+      <button class="demo-btn" onclick="fillDemo('sarah.mensah@example.com', 'mobile123', 'Sarah Mensah')">
+        <span>Sarah Mensah (Member)</span>
+        <span style="color:var(--signal);">Fill & Sign In</span>
+      </button>
+    </div>
+
+    <div class="toast" id="toast"></div>
+  </div>
+</div>
+
+<script>
+// Clock updater
+function updateClock(){
+  const now = new Date();
+  document.getElementById('clock').textContent = now.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+}
+updateClock();
+setInterval(updateClock, 10000);
+
+function showToast(msg) {
+  const toast = document.getElementById('toast');
+  toast.textContent = msg;
+  toast.style.display = 'block';
+  setTimeout(() => { toast.style.display = 'none'; }, 4000);
+}
+
+function switchTab(mode) {
+  const loginCard = document.getElementById('loginCard');
+  const registerCard = document.getElementById('registerCard');
+  const tabLoginBtn = document.getElementById('tabLoginBtn');
+  const tabRegisterBtn = document.getElementById('tabRegisterBtn');
+
+  if (mode === 'login') {
+    loginCard.classList.remove('hidden');
+    registerCard.classList.add('hidden');
+    tabLoginBtn.classList.add('active');
+    tabRegisterBtn.classList.remove('active');
+  } else {
+    loginCard.classList.add('hidden');
+    registerCard.classList.remove('hidden');
+    tabLoginBtn.classList.remove('active');
+    tabRegisterBtn.classList.add('active');
+  }
+}
+
+async function handleLogin(e) {
+  e.preventDefault();
+  const email = document.getElementById('loginEmail').value.trim();
+  const password = document.getElementById('loginPassword').value;
+  const btn = document.getElementById('loginSubmitBtn');
+
+  btn.disabled = true;
+  btn.textContent = 'Authenticating...';
+
+  try {
+    const res = await fetch('/api/iac-mobile/auth/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, password })
+    });
+
+    const data = await res.json();
+    if (!res.ok) {
+      throw new Error(data.error || 'Authentication failed');
+    }
+
+    // Save tokens and profile
+    localStorage.setItem('iac_mobile_access_token', data.accessToken);
+    localStorage.setItem('iac_mobile_refresh_token', data.refreshToken);
+    localStorage.setItem('iac_mobile_user_id', data.user.mobileUserId);
+    localStorage.setItem('iac_mobile_user_name', data.user.name);
+    localStorage.setItem('iac_mobile_user_email', data.user.email);
+    localStorage.setItem('iac_mobile_user_phone', data.user.phoneNumber || '');
+    localStorage.setItem('iac_mobile_user_id_num', data.user.studentId || '');
+
+    showToast('Signed in successfully! Redirecting...');
+    setTimeout(() => {
+      window.location.href = 'index.html';
+    }, 800);
+
+  } catch (err) {
+    showToast(err.message);
+    btn.disabled = false;
+    btn.textContent = 'Sign In to Mobile App';
+  }
+}
+
+async function handleRegister(e) {
+  e.preventDefault();
+  const name = document.getElementById('regName').value.trim();
+  const email = document.getElementById('regEmail').value.trim();
+  const phoneNumber = document.getElementById('regPhone').value.trim();
+  const studentId = document.getElementById('regStudentId').value.trim();
+  const password = document.getElementById('regPassword').value;
+  const confirm = document.getElementById('regPasswordConfirm').value;
+  const btn = document.getElementById('regSubmitBtn');
+
+  if (password !== confirm) {
+    showToast('Passwords do not match');
+    return;
+  }
+
+  btn.disabled = true;
+  btn.textContent = 'Creating Account...';
+
+  try {
+    const res = await fetch('/api/iac-mobile/auth/register', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name, email, password, phoneNumber, studentId })
+    });
+
+    const data = await res.json();
+    if (!res.ok) {
+      throw new Error(data.error || 'Registration failed');
+    }
+
+    // Save tokens and profile
+    localStorage.setItem('iac_mobile_access_token', data.accessToken);
+    localStorage.setItem('iac_mobile_refresh_token', data.refreshToken);
+    localStorage.setItem('iac_mobile_user_id', data.user.mobileUserId);
+    localStorage.setItem('iac_mobile_user_name', data.user.name);
+    localStorage.setItem('iac_mobile_user_email', data.user.email);
+    localStorage.setItem('iac_mobile_user_phone', data.user.phoneNumber || phoneNumber);
+    localStorage.setItem('iac_mobile_user_id_num', data.user.studentId || studentId);
+
+    showToast('Account created successfully! Opening Mobile App...');
+    setTimeout(() => {
+      window.location.href = 'index.html';
+    }, 800);
+
+  } catch (err) {
+    showToast(err.message);
+    btn.disabled = false;
+    btn.textContent = 'Create Mobile Account';
+  }
+}
+
+async function fillDemo(email, password, name) {
+  // First try to log in
+  document.getElementById('loginEmail').value = email;
+  document.getElementById('loginPassword').value = password;
+  switchTab('login');
+
+  const btn = document.getElementById('loginSubmitBtn');
+  btn.disabled = true;
+  btn.textContent = 'Authenticating Demo User...';
+
+  try {
+    let res = await fetch('/api/iac-mobile/auth/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, password })
+    });
+
+    let data = await res.json();
+
+    // If account doesn't exist yet, automatically register it for smooth demo
+    if (!res.ok && (data.error && data.error.includes('Invalid email'))) {
+      res = await fetch('/api/iac-mobile/auth/register', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name, email, password })
+      });
+      data = await res.json();
+    }
+
+    if (!res.ok) {
+      throw new Error(data.error || 'Demo login failed');
+    }
+
+    localStorage.setItem('iac_mobile_access_token', data.accessToken);
+    localStorage.setItem('iac_mobile_refresh_token', data.refreshToken);
+    localStorage.setItem('iac_mobile_user_id', data.user.mobileUserId);
+    localStorage.setItem('iac_mobile_user_name', data.user.name);
+    localStorage.setItem('iac_mobile_user_email', data.user.email);
+    localStorage.setItem('iac_mobile_user_phone', data.user.phoneNumber || '0241002003');
+    localStorage.setItem('iac_mobile_user_id_num', data.user.studentId || '10982341');
+
+    showToast(`Signed in as ${data.user.name}! Redirecting...`);
+    setTimeout(() => {
+      window.location.href = 'index.html';
+    }, 800);
+
+  } catch (err) {
+    showToast(err.message);
+    btn.disabled = false;
+    btn.textContent = 'Sign In to Mobile App';
+  }
+}
+
+// Auto-check if user is already signed in with a valid token
+async function checkExistingAuth() {
+  const token = localStorage.getItem('iac_mobile_access_token');
+  if (!token) return;
+
+  try {
+    const res = await fetch('/api/iac-mobile/auth/verify', {
+      headers: { 'Authorization': `Bearer ${token}` }
+    });
+    if (res.ok) {
+      window.location.href = 'index.html';
+    }
+  } catch (err) {}
+}
+checkExistingAuth();
+</script>
+</body>
+</html>
