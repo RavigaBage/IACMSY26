@@ -94,16 +94,21 @@ async function request(
     }
 
     const message =
-      errorData?.message ||
-      errorData?.error ||
-      (res.status >= 500
+      res.status >= 500
         ? `Server error (${res.status}). Please try again later.`
-        : res.statusText || 'Request failed');
+        : (errorData?.message ||
+           errorData?.error ||
+           res.statusText ||
+           'Request failed');
 
     throw new ApiError(message, res.status, errorData);
   }
 
   const result = await res.json();
+  if (result && result.status === 'error') {
+    const message = result.message || result.error || 'Request failed';
+    throw new ApiError(message, 400, result);
+  }
   return result;
 }
 

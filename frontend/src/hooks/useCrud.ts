@@ -8,14 +8,24 @@ interface UseCrudOptions {
   onError?: (err: any) => void;
 }
 
-function getErrorMessage(err: any, fallback: string): string {
+export function getErrorMessage(err: any, fallback: string): string {
+  const status = err?.status ?? err?.statusCode ?? err?.data?.status ?? err?.data?.statusCode;
+
   // If status is 500 or higher (server error), show a safe generic message with code
-  if (err?.status && err.status >= 500) {
-    return `${fallback}: Server error (${err.status}). Please try again later.`;
+  if (typeof status === 'number' && status >= 500) {
+    return `${fallback}: Server error (${status}). Please try again later.`;
   }
+
   // If status is anything but 500 and above (i.e. < 500 or client validation error), show the specific error
-  if (err?.message) {
-    return err.message;
+  const specificMessage =
+    err?.message ||
+    err?.data?.message ||
+    err?.data?.error ||
+    err?.error ||
+    (typeof err === 'string' ? err : null);
+
+  if (specificMessage && specificMessage !== 'Failed to fetch' && !specificMessage.includes('[object Object]')) {
+    return specificMessage;
   }
   return fallback;
 }
@@ -53,11 +63,10 @@ export function useCrud<T = any>({ endpoint, onSuccess, onError }: UseCrudOption
       const targetEndpoint = customEndpoint || endpoint;
       const res = await api.post(targetEndpoint, payload);
       if (res?.status === 'error') {
-        const errorMsg = res?.message || 'Failed to create record';
-        error(errorMsg);
+        const errorMsg = res?.message || res?.error || 'Failed to create record';
         const customErr: any = new Error(errorMsg);
         customErr.status = 400;
-        onError?.(customErr);
+        customErr.data = res;
         throw customErr;
       }
       success('Record created successfully');
@@ -83,11 +92,10 @@ export function useCrud<T = any>({ endpoint, onSuccess, onError }: UseCrudOption
         : `${endpoint}/${id}`;
       const res = await api.patch(targetEndpoint, payload);
       if (res?.status === 'error') {
-        const errorMsg = res?.message || 'Failed to update record';
-        error(errorMsg);
+        const errorMsg = res?.message || res?.error || 'Failed to update record';
         const customErr: any = new Error(errorMsg);
         customErr.status = 400;
-        onError?.(customErr);
+        customErr.data = res;
         throw customErr;
       }
       success('Record updated successfully');
@@ -113,11 +121,10 @@ export function useCrud<T = any>({ endpoint, onSuccess, onError }: UseCrudOption
         : `${endpoint}/${id}`;
       const res = await api.delete(targetEndpoint);
       if (res?.status === 'error') {
-        const errorMsg = res?.message || 'Failed to delete record';
-        error(errorMsg);
+        const errorMsg = res?.message || res?.error || 'Failed to delete record';
         const customErr: any = new Error(errorMsg);
         customErr.status = 400;
-        onError?.(customErr);
+        customErr.data = res;
         throw customErr;
       }
       success('Record deleted successfully');

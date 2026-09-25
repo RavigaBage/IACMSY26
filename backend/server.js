@@ -108,8 +108,11 @@ app.use((err, req, res, next) => {
 
 app.use((err,req,res,next)=>{
     console.error(err.stack);
-    res.status(err.statusCode || 500).json({
-        message: err.message || 'Internal server error',
+    const isClientError = err.name === 'ValidationError' || err.name === 'CastError' || err.statusCode === 400 || (err.message && err.message.toLowerCase().includes('validation'));
+    const statusCode = err.statusCode || (isClientError ? 400 : 500);
+    res.status(statusCode).json({
+        status: 'error',
+        message: err.message || (statusCode >= 500 ? 'Internal server error' : 'Request failed'),
     });
 });
 

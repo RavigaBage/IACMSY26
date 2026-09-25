@@ -169,7 +169,13 @@ router.post(
             if (!presenter || !String(presenter).trim()) missing.push('presenter');
             if (!programName || !String(programName).trim()) missing.push('programName');
             if (!description || !String(description).trim()) missing.push('description');
-            if (!roomType) missing.push('roomType');
+            if (!roomType || !String(roomType).trim()) missing.push('roomType');
+            if (!eventType || !String(eventType).trim()) missing.push('eventType');
+            if (!category || !String(category).trim()) missing.push('category');
+            if (!beneficiaries || !String(beneficiaries).trim()) missing.push('beneficiaries');
+            if (participants === undefined || participants === null || isNaN(Number(participants)) || Number(participants) < 1) {
+                missing.push('participants (minimum 1)');
+            }
 
             if (missing.length > 0) {
                 return res.status(400).json({
@@ -243,7 +249,7 @@ router.post(
             });
 
         } catch (err) {
-            const isClientError = err.name === 'ValidationError' || err.name === 'CastError' || err.statusCode === 400;
+            const isClientError = err.name === 'ValidationError' || err.name === 'CastError' || err.statusCode === 400 || (err.message && err.message.toLowerCase().includes('validation'));
             res.status(isClientError ? 400 : 500).json({
                 status: "error",
                 message:
