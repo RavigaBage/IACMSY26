@@ -6,15 +6,17 @@ async function getTransporter() {
 
   const host = config?.host || process.env.SMTP_HOST || 'smtp.gmail.com';
   const port = Number(config?.port || process.env.SMTP_PORT || 587);
-  const secure = config?.secure !== undefined ? config.secure : false;
+  const secure = config?.secure !== undefined ? config.secure : (process.env.SMTP_SECURE === 'true' || port === 465);
   const user = config?.user || process.env.SMTP_USER || '';
   const pass = config?.pass || process.env.SMTP_PASS || '';
+  const fromEmail = config?.fromEmail || process.env.SMTP_FROM_EMAIL || user || 'noreply@iac.system';
+  const fromName = config?.fromName || process.env.SMTP_FROM_NAME || 'IAC Mobile System';
 
   if (!user || !pass) {
     return {
       transporter: null,
-      fromEmail: config?.fromEmail || user || 'noreply@iac.system',
-      fromName: config?.fromName || 'IAC Mobile System',
+      fromEmail,
+      fromName,
       error: 'SMTP credentials (user/password) not configured in settings or environment.',
     };
   }
@@ -31,8 +33,8 @@ async function getTransporter() {
 
   return {
     transporter,
-    fromEmail: config?.fromEmail || user,
-    fromName: config?.fromName || 'IAC Mobile System',
+    fromEmail,
+    fromName,
   };
 }
 

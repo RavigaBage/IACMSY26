@@ -6,6 +6,7 @@ class CommandLifecycleEngine {
         this.eventBus = eventBus;
 
         this.timeoutMap = new Map();
+        this.intervalId = null;
     }
 
     // =========================
@@ -15,7 +16,22 @@ class CommandLifecycleEngine {
     async start() {
         console.log("[LifecycleEngine] running...");
 
-        setInterval(() => this.tick(), 2000);
+        this.intervalId = setInterval(() => this.tick(), 2000);
+    }
+
+    stop() {
+        if (this.intervalId) {
+            clearInterval(this.intervalId);
+            this.intervalId = null;
+        }
+        this.clearTimeouts();
+    }
+
+    clearTimeouts() {
+        for (const timeout of this.timeoutMap.values()) {
+            clearTimeout(timeout);
+        }
+        this.timeoutMap.clear();
     }
 
     // =========================
@@ -41,7 +57,7 @@ class CommandLifecycleEngine {
             await this.repo.updateStatus(cmd._id, "QUEUED");
 
             // 📡 REAL-TIME EVENT
-            this.eventBus.emitToDashboard("COMMAND_CREATED", {
+            this.eventBus?.emitToDashboard?.("COMMAND_CREATED", {
                 commandId: cmd._id,
                 type: cmd.commandType
             });
@@ -65,16 +81,16 @@ class CommandLifecycleEngine {
                 const device = await this.repo.getDevice(target.deviceId);
 
                 // ❌ DEVICE OFFLINE
-                if (!device || device.agentStatus !== "online") {
+                if (!device || device.status?.remoteAgent !== "active") {
 
                     await this.repo.markFailed(
                         target._id,
                         "Device offline"
                     );
 
-                    this.eventBus.emitToDashboard("COMMAND_FAILED", {
+                    this.eventBus?.emitToDashboard?.("COMMAND_FAILED", {
                         commandId: command._id,
-                        deviceId: device?._id,
+                        deviceId: device?.deviceId || device?._id || target.deviceId,
                         reason: "Device offline"
                     });
 
@@ -82,8 +98,9 @@ class CommandLifecycleEngine {
                 }
 
                 // 🚀 SEND TO DEVICE
-                this.socketService.emitToDevice(
-                    device._id,
+                const targetDeviceId = device.deviceId || device._id;
+                this.socketService?.emitToDevice?.(
+                    targetDeviceId,
                     "device:command",
                     {
                         commandId: command._id,
@@ -93,20 +110,20 @@ class CommandLifecycleEngine {
                     }
                 );
 
-                await this.repo.markSent(target._id);
+                await this.repo.markSent(target._id, "SENT");
 
                 await this.repo.updateStatus(command._id, "SENT");
 
                 // 📡 DASHBOARD EVENT
-                this.eventBus.emitToDashboard("COMMAND_SENT", {
+                this.eventBus?.emitToDashboard?.("COMMAND_SENT", {
                     commandId: command._id,
-                    deviceId: device._id
+                    deviceId: targetDeviceId
                 });
 
                 // ⏱ REGISTER TIMEOUT
                 this.registerTimeout(
                     target._id,
-                    command.timeoutSeconds
+                    command.timeoutSeconds || 300
                 );
             }
         }
@@ -116,7 +133,7 @@ class CommandLifecycleEngine {
     // ⏱ TIMEOUT HANDLER
     // =========================
 
-    registerTimeout(targetId, timeoutSeconds) {
+    registerTimeout(targetId, timeoutSeconds = 300) {
 
         const timeout = setTimeout(async () => {
 
@@ -129,7 +146,7 @@ class CommandLifecycleEngine {
                 "TIMED_OUT"
             );
 
-            this.eventBus.emitToDashboard("COMMAND_FAILED", {
+            this.eventBus?.emitToDashboard?.("COMMAND_FAILED", {
                 commandId: target.commandId,
                 targetId,
                 reason: "Timeout"
@@ -139,7 +156,7 @@ class CommandLifecycleEngine {
 
         }, timeoutSeconds * 1000);
 
-        this.timeoutMap.set(targetId, timeout);
+        this.timeoutMap.set(targetId.toString(), timeout);
     }
 
     // =========================
@@ -156,10 +173,11 @@ class CommandLifecycleEngine {
 
             await this.repo.updateTargetStatus(
                 targetId,
-                "FAILED"
+                "FAILED",
+                { errorMessage: "Max retries exceeded" }
             );
 
-            this.eventBus.emitToDashboard("COMMAND_FAILED", {
+            this.eventBus?.emitToDashboard?.("COMMAND_FAILED", {
                 commandId: target.commandId,
                 targetId,
                 reason: "Max retries exceeded"
@@ -173,13 +191,14 @@ class CommandLifecycleEngine {
         const command = await this.repo.getCommand(target.commandId);
         const device = await this.repo.getDevice(target.deviceId);
 
-        if (!device || device.agentStatus !== "online") {
+        if (!device || device.status?.remoteAgent !== "active") {
             return;
         }
 
         // 🔁 RESEND COMMAND
-        this.socketService.emitToDevice(
-            device._id,
+        const targetDeviceId = device.deviceId || device._id;
+        this.socketService?.emitToDevice?.(
+            targetDeviceId,
             "device:command",
             {
                 commandId: command._id,
@@ -191,15 +210,15 @@ class CommandLifecycleEngine {
 
         await this.repo.updateTargetStatus(targetId, "SENT");
 
-        this.eventBus.emitToDashboard("COMMAND_SENT", {
+        this.eventBus?.emitToDashboard?.("COMMAND_SENT", {
             commandId: command._id,
-            deviceId: device._id,
+            deviceId: targetDeviceId,
             retry: true
         });
 
         this.registerTimeout(
             targetId,
-            command.timeoutSeconds
+            command?.timeoutSeconds || 300
         );
     }
 

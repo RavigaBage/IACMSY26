@@ -64,17 +64,8 @@ const DeviceSchema = new mongoose.Schema(
     },
 
     security: {
-      riskLevel: {
-        type: String,
-        enum: ["low", "medium", "high"],
-        default: "low",
-      },
-    },
-
-   
-    security: {
       lastSeen: { type: Date },
-      ipHistory: String,
+      ipHistory: { type: [String], default: [] },
       flagged: { type: Boolean, default: false },
       riskLevel: {
         type: String,

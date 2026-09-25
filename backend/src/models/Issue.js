@@ -6,7 +6,11 @@ const issueSchema = new mongoose.Schema(
     reporterName: { type: String, default: 'Anonymous' },
     category: {
       type: String,
-      enum: ['Equipment', 'Facility', 'Software', 'Cleanliness', 'General'],
+      enum: [
+        'Equipment', 'Facility', 'Software', 'Cleanliness', 'General',
+        'equipment', 'facility', 'software', 'cleanliness', 'general',
+        'hardware', 'Hardware', 'other', 'Other'
+      ],
       default: 'General',
     },
     description: { type: String, required: true },

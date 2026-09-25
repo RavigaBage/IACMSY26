@@ -1,3 +1,5 @@
+const mongoose = require('mongoose');
+
 class CommandRepository {
 
     constructor(db) {
@@ -16,7 +18,6 @@ class CommandRepository {
         }catch(error){
             return {status:"error",message:error};
         }
-s
     }
 
  
@@ -99,25 +100,116 @@ s
       }
     }
 
-    async markSent(targetId,status_) {
+    async getPendingCommands() {
+        try {
+            const filter = await this.db.deviceCommand.find({ status: "PENDING" }).sort({ createdAt: 1, created_at: 1 });
+            return filter;
+        } catch (error) {
+            console.error("Error fetching pending commands:", error);
+            throw error;
+        }
+    }
 
-        await this.db.deviceCommand.findByIdAndUpdate(
-            targetId,
-              { status: status_ },
-              { new: true }
-        );
+    async getDevice(deviceId) {
+        try {
+            let filter;
+            if (mongoose.Types.ObjectId.isValid(deviceId)) {
+                filter = await this.db.devices.findOne({
+                    $or: [{ _id: deviceId }, { deviceId: deviceId }]
+                });
+            } else {
+                filter = await this.db.devices.findOne({ deviceId: deviceId });
+            }
+            return filter;
+        } catch (error) {
+            console.error("Error fetching device:", error);
+            throw error;
+        }
+    }
 
-        await this.db.deviceCommandTarget.findByIdAndUpdate(
-            targetId,
-            { status: 'SENT' },
-            { new: true }
-        );
+    async getTarget(targetId) {
+        try {
+            const filter = await this.db.deviceCommandTarget.findById(targetId);
+            return filter;
+        } catch (error) {
+            console.error("Error fetching target:", error);
+            throw error;
+        }
+    }
 
+    async updateTargetStatus(targetId, status_, extraFields = {}) {
+        try {
+            const updateDoc = { status: status_, ...extraFields };
+            if (status_ === "ACKNOWLEDGED") {
+                updateDoc.acknowledgedAt = new Date();
+            } else if (status_ === "RUNNING") {
+                updateDoc.startedAt = new Date();
+            } else if (status_ === "COMPLETED" || status_ === "FAILED" || status_ === "TIMED_OUT") {
+                updateDoc.completedAt = new Date();
+            }
+
+            const updated = await this.db.deviceCommandTarget.findByIdAndUpdate(
+                targetId,
+                { $set: updateDoc },
+                { new: true }
+            );
+            return updated;
+        } catch (error) {
+            console.error("Error updating target status:", error);
+            throw error;
+        }
+    }
+
+    async incrementAttempt(targetId) {
+        try {
+            const updated = await this.db.deviceCommandTarget.findByIdAndUpdate(
+                targetId,
+                { $inc: { attemptCount: 1 } },
+                { new: true }
+            );
+            return updated;
+        } catch (error) {
+            console.error("Error incrementing target attempt count:", error);
+            throw error;
+        }
+    }
+
+    /**
+     * Finds targets that are considered "stuck":
+     * Targets in "SENT", "ACKNOWLEDGED", or "TIMED_OUT" state that were last updated
+     * longer than thresholdSeconds (default 300s) ago and have attemptCount < 3
+     * so they can be recovered by the retry loop.
+     */
+    async getStuckTargets(thresholdSeconds = 300) {
+        try {
+            const cutoff = new Date(Date.now() - thresholdSeconds * 1000);
+            const stuck = await this.db.deviceCommandTarget.find({
+                status: { $in: ["SENT", "ACKNOWLEDGED", "TIMED_OUT"] },
+                attemptCount: { $lt: 3 },
+                updatedAt: { $lt: cutoff }
+            });
+            return stuck;
+        } catch (error) {
+            console.error("Error fetching stuck targets:", error);
+            throw error;
+        }
+    }
+
+    async markSent(targetId, status_ = "SENT") {
+        try {
+            await this.db.deviceCommandTarget.findByIdAndUpdate(
+                targetId,
+                { status: status_ },
+                { new: true }
+            );
+        } catch (error) {
+            console.error("Error marking target sent:", error);
+            throw error;
+        }
     }
 
     async markAcknowledged(targetId) {
-
-        return await CommandTarget.findByIdAndUpdate(
+        return await this.db.deviceCommandTarget.findByIdAndUpdate(
             targetId,
             {
                 $set: {
@@ -130,8 +222,7 @@ s
     }
 
     async markCompleted(targetId) {
-
-        return await CommandTarget.findByIdAndUpdate(
+        return await this.db.deviceCommandTarget.findByIdAndUpdate(
             targetId,
             {
                 $set: {
@@ -144,8 +235,7 @@ s
     }
 
     async markFailed(targetId, errorMessage) {
-
-        return await CommandTarget.findByIdAndUpdate(
+        return await this.db.deviceCommandTarget.findByIdAndUpdate(
             targetId,
             {
                 $set: {

@@ -8,7 +8,8 @@ const REPORT_TYPES = [
   'center_overview',
   'device_status',
   'custom',
-  'monthly_summary'
+  'monthly_summary',
+  'all'
 ];
 
 const REPORT_STATUS = ['generating', 'completed', 'failed'];

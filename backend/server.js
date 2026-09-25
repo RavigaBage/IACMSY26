@@ -79,7 +79,7 @@ app.use((err,req,res,next)=>{
 
 
 
-const PORT = process.env.BACKEND_PORT || 5000;
+const PORT = process.env.PORT || process.env.BACKEND_PORT || 3000;
 
 
 io.on("connection", (socket) => {

@@ -1,20 +1,21 @@
 // utils/redisClient.js
-const { createClient } = require('redis');
+// MOCKED — in-memory, data lost on container sleep
+const store = new Map();
 
-const redis = createClient({
-  url: process.env.REDIS_URL || 'redis://localhost:6379',
-});
-
-redis.on('error', (err) => console.error('Redis Client Error', err));
-
-let isConnected = false;
+const redis = {
+  get: async (k) => store.get(k) ?? null,
+  set: async (k, v) => { store.set(k, v); return 'OK'; },
+  del: async (k) => store.delete(k),
+  incr: async (k) => { const n = (store.get(k) || 0) + 1; store.set(k, n); return n; },
+  connect: async () => {},
+  disconnect: async () => {},
+  quit: async () => {},
+  on: () => {},
+  status: 'ready'
+};
 
 async function getRedisClient() {
-  if (!isConnected) {
-    await redis.connect();
-    isConnected = true;
-  }
   return redis;
 }
 
-module.exports = { getRedisClient };
+module.exports = { getRedisClient, redis };

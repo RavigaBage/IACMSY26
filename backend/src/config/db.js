@@ -25,18 +25,16 @@ const seedInitialData = async () => {
 
     } catch (err) {
         console.error('❌ Error seeding default admin:', err.message);
-        throw err;
     }
 };
 
-
 const connectDB = async () => {
+    mongoose.set('bufferCommands', false);
     const uri = process.env.MONGO_URL;
     const useMemoryDb =
         process.env.USE_MEMORY_DB === 'true' ||
         uri === 'memory' ||
         !uri;
-
 
     // ==========================================
     // MONGODB MEMORY SERVER
@@ -44,31 +42,22 @@ const connectDB = async () => {
     if (useMemoryDb) {
         try {
             console.log('ℹ️ Initializing MongoMemoryServer...');
-
             mongoServer = await MongoMemoryServer.create();
-
             const memoryUri = mongoServer.getUri();
-
             await mongoose.connect(memoryUri);
-
             console.log(
                 `✅ MongoDB Memory Server connected at: ${memoryUri}`
             );
-
             await seedInitialData();
-
             return;
-
         } catch (err) {
-            console.error(
-                '❌ Failed to start MongoMemoryServer:',
+            console.warn(
+                '⚠️ Failed to start MongoMemoryServer, continuing with offline fallback:',
                 err.message
             );
-
-            process.exit(1);
+            return;
         }
     }
-
 
     // ==========================================
     // REAL MONGODB
@@ -86,17 +75,13 @@ const connectDB = async () => {
             `📦 Database: ${conn.connection.name}`
         );
 
-        // Seed only when necessary
         await seedInitialData();
 
     } catch (err) {
-        console.error(
-            `❌ MongoDB connection failed: ${err.message}`
+        console.warn(
+            `⚠️ MongoDB connection failed, continuing with offline fallback: ${err.message}`
         );
-
-        process.exit(1);
     }
 };
-
 
 module.exports = connectDB;

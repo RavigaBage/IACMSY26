@@ -39,7 +39,11 @@ const ROOM_TYPES = [
   'Seminar Room 3',
   'Seminar Room 4',
   'Conference Room',
-  'Training Lab'
+  'Training Lab',
+  'conference',
+  'seminar',
+  'Conference',
+  'Seminar Room'
 ];
 
 const ROOM_STATUS = [
@@ -48,6 +52,17 @@ const ROOM_STATUS = [
   "MAINTENANCE",
   "CHECKOUT",
   "RESERVED",
+  "Booked",
+  "Occupied",
+  "Completed",
+  "Cancelled",
+  "reserved",
+  "confirmed",
+  "cancelled",
+  "booked",
+  "completed",
+  "occupied",
+  "available"
 ];
 
 
@@ -55,8 +70,6 @@ const EventProgramSchema = new mongoose.Schema(
   {
     startDate: { type: Date, required: true },
     endDate:   { type: Date, required: true },   
-    status:    { type: String, enum: ['reserved', 'confirmed', 'cancelled'], default: 'reserved' },
-    roomNumber: { type: Number, enum: [1, 2, 3, 4], required: true },
     name: {
       type: String,
       required: true,
@@ -119,7 +132,6 @@ const EventProgramSchema = new mongoose.Schema(
     
     roomNumber: {
       type: Number,
-      enum: [1, 2, 3, 4],
       required: true,
     },
 
@@ -127,6 +139,22 @@ const EventProgramSchema = new mongoose.Schema(
       type: String,
       enum: ROOM_TYPES,
       required: true,
+    },
+
+    paymentStatus: {
+      type: String,
+      enum: ['Unpaid', 'Paid', 'Partially Paid'],
+      default: 'Unpaid',
+    },
+
+    rate: {
+      type: Number,
+      default: 0,
+    },
+
+    amountDue: {
+      type: Number,
+      default: 0,
     },
 
     status: {

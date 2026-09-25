@@ -60,7 +60,9 @@ export function useCrud<T = any>({ endpoint, onSuccess, onError }: UseCrudOption
   const updateRecord = async (id: string, payload: any, customEndpoint?: string) => {
     try {
       setSubmitting(true);
-      const targetEndpoint = customEndpoint ? `${customEndpoint}/${id}` : `${endpoint}/${id}`;
+      const targetEndpoint = customEndpoint
+        ? (customEndpoint.includes(id) ? customEndpoint : `${customEndpoint}/${id}`)
+        : `${endpoint}/${id}`;
       const res = await api.patch(targetEndpoint, payload);
       success('Record updated successfully');
       onSuccess?.(res);
@@ -79,7 +81,9 @@ export function useCrud<T = any>({ endpoint, onSuccess, onError }: UseCrudOption
   const deleteRecord = async (id: string, customEndpoint?: string) => {
     try {
       setSubmitting(true);
-      const targetEndpoint = customEndpoint ? `${customEndpoint}/${id}` : `${endpoint}/${id}`;
+      const targetEndpoint = customEndpoint
+        ? (customEndpoint.includes(id) ? customEndpoint : `${customEndpoint}/${id}`)
+        : `${endpoint}/${id}`;
       const res = await api.delete(targetEndpoint);
       success('Record deleted successfully');
       onSuccess?.(res);

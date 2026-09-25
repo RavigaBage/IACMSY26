@@ -10,8 +10,7 @@ const InternetLoungeSchema = new mongoose.Schema(
         identifier:{
             type:String,
             required:[true,'Identifier is required'],
-            unique:true,
-            sparse: true,
+            index: true,
         },
         identifierType:{
             type:String,
