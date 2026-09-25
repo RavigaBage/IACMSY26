@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Calendar, List, Plus, Save, X, Edit2, Trash2, Eye, MonitorPlay, ChevronLeft, ChevronRight, CheckCircle, Search } from 'lucide-react';
+import { Calendar, List, Plus, Save, X, Edit2, Trash2, Eye, MonitorPlay, ChevronLeft, ChevronRight, CheckCircle, Search, AlertCircle } from 'lucide-react';
 import { ConfirmModal } from '../components/ui/ConfirmModal';
 import { Pagination } from '../components/ui/Pagination';
 import { useCrud } from '../hooks/useCrud';

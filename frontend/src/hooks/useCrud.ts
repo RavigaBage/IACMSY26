@@ -8,12 +8,24 @@ interface UseCrudOptions {
   onError?: (err: any) => void;
 }
 
+function getErrorMessage(err: any, fallback: string): string {
+  // If status is 500 or higher (server error), show a safe generic message with code
+  if (err?.status && err.status >= 500) {
+    return `${fallback}: Server error (${err.status}). Please try again later.`;
+  }
+  // If status is anything but 500 and above (i.e. < 500 or client validation error), show the specific error
+  if (err?.message) {
+    return err.message;
+  }
+  return fallback;
+}
+
 export function useCrud<T = any>({ endpoint, onSuccess, onError }: UseCrudOptions) {
   const [data, setData] = useState<T[] | any>([]);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const { success, error } = useToast();
-  const [pages,setpages] = useState(0);
+  const [pages, setpages] = useState(0);
 
   const fetchAll = useCallback(async (params?: Record<string, any>) => {
     try {
@@ -25,9 +37,10 @@ export function useCrud<T = any>({ endpoint, onSuccess, onError }: UseCrudOption
       if (res.data) setData(res.data);
       if (res.totalPages !== undefined) setpages(res.totalPages);
       return res;
-    } catch (err) {
+    } catch (err: any) {
       console.error(`Failed to fetch from ${endpoint}:`, err);
-      error('Failed to load data');
+      const errorMsg = getErrorMessage(err, 'Failed to load data');
+      error(errorMsg);
       onError?.(err);
     } finally {
       setLoading(false);
@@ -39,17 +52,22 @@ export function useCrud<T = any>({ endpoint, onSuccess, onError }: UseCrudOption
       setSubmitting(true);
       const targetEndpoint = customEndpoint || endpoint;
       const res = await api.post(targetEndpoint, payload);
-      if(res?.status == 'error'){
-        error(res?.message);
-        return res?.data;
+      if (res?.status === 'error') {
+        const errorMsg = res?.message || 'Failed to create record';
+        error(errorMsg);
+        const customErr: any = new Error(errorMsg);
+        customErr.status = 400;
+        onError?.(customErr);
+        throw customErr;
       }
       success('Record created successfully');
       onSuccess?.(res);
       await fetchAll();
       return res;
-    } catch (err) {
+    } catch (err: any) {
       console.error(`Failed to create record at ${endpoint}:`, err);
-      error('Failed to create record');
+      const errorMsg = getErrorMessage(err, 'Failed to create record');
+      error(errorMsg);
       onError?.(err);
       throw err;
     } finally {
@@ -64,13 +82,22 @@ export function useCrud<T = any>({ endpoint, onSuccess, onError }: UseCrudOption
         ? (customEndpoint.includes(id) ? customEndpoint : `${customEndpoint}/${id}`)
         : `${endpoint}/${id}`;
       const res = await api.patch(targetEndpoint, payload);
+      if (res?.status === 'error') {
+        const errorMsg = res?.message || 'Failed to update record';
+        error(errorMsg);
+        const customErr: any = new Error(errorMsg);
+        customErr.status = 400;
+        onError?.(customErr);
+        throw customErr;
+      }
       success('Record updated successfully');
       onSuccess?.(res);
       await fetchAll();
       return res;
-    } catch (err) {
+    } catch (err: any) {
       console.error(`Failed to update record ${id} at ${endpoint}:`, err);
-      error('Failed to update record');
+      const errorMsg = getErrorMessage(err, 'Failed to update record');
+      error(errorMsg);
       onError?.(err);
       throw err;
     } finally {
@@ -85,13 +112,22 @@ export function useCrud<T = any>({ endpoint, onSuccess, onError }: UseCrudOption
         ? (customEndpoint.includes(id) ? customEndpoint : `${customEndpoint}/${id}`)
         : `${endpoint}/${id}`;
       const res = await api.delete(targetEndpoint);
+      if (res?.status === 'error') {
+        const errorMsg = res?.message || 'Failed to delete record';
+        error(errorMsg);
+        const customErr: any = new Error(errorMsg);
+        customErr.status = 400;
+        onError?.(customErr);
+        throw customErr;
+      }
       success('Record deleted successfully');
       onSuccess?.(res);
       await fetchAll();
       return res;
-    } catch (err) {
+    } catch (err: any) {
       console.error(`Failed to delete record ${id} at ${endpoint}:`, err);
-      error('Failed to delete record');
+      const errorMsg = getErrorMessage(err, 'Failed to delete record');
+      error(errorMsg);
       onError?.(err);
       throw err;
     } finally {

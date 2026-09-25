@@ -7,6 +7,18 @@ function getUrl(endpoint: string): string {
   return API_BASE_URL ? `${API_BASE_URL}${cleanEndpoint}` : cleanEndpoint;
 }
 
+export class ApiError extends Error {
+  status: number;
+  data?: any;
+
+  constructor(message: string, status: number, data?: any) {
+    super(message);
+    this.name = 'ApiError';
+    this.status = status;
+    this.data = data;
+  }
+}
+
 let refreshPromise: Promise<boolean> | null = null;
 let accessToken: string | null = null;
 
@@ -70,21 +82,27 @@ async function request(
       return request(endpoint, options, true);
     }
     redirectToLogin();
-    throw new Error("Session expired");
+    throw new ApiError("Session expired", 401);
   }
-  if (res.status === 400) {
-    const errorData = await res.json();
-    throw new Error(errorData.message || "Bad Request");
+
+  if (!res.ok) {
+    let errorData: any = null;
+    try {
+      errorData = await res.json();
+    } catch {
+      // response might not be JSON
+    }
+
+    const message =
+      errorData?.message ||
+      errorData?.error ||
+      (res.status >= 500
+        ? `Server error (${res.status}). Please try again later.`
+        : res.statusText || 'Request failed');
+
+    throw new ApiError(message, res.status, errorData);
   }
-if (res.status === 401) {
-    const errorData = await res.json();
-    throw new Error(errorData.message || "Bad Request");
-  }
-if (res.status === 403) {
-    const errorData = await res.json();
-    throw new Error(errorData.message || "Bad Request");
-  }
-  if (!res.ok) throw new Error("API Error");
+
   const result = await res.json();
   return result;
 }
