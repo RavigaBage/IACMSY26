@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react';
-import { Calendar, List, Plus, Save, X, Edit2, Trash2, Eye, MonitorPlay, ChevronLeft, ChevronRight, CheckCircle, Search } from 'lucide-react';
+import { Calendar, List, Plus, Save, X, Edit2, Trash2, Eye, MonitorPlay, ChevronLeft, ChevronRight, CheckCircle, Search, AlertCircle } from 'lucide-react';
 import { ConfirmModal } from '../components/ui/ConfirmModal';
 import { Pagination } from '../components/ui/Pagination';
-import { useCrud } from '../hooks/useCrud';
+import { useCrud, getErrorMessage } from '../hooks/useCrud';
 import { useFuzzySearch } from '../hooks/useFuzzySearch';
 import { 
   format, addMonths, subMonths, startOfMonth, endOfMonth, 
@@ -150,6 +150,7 @@ export default function Rooms() {
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [submitError, setSubmitError] = useState<string | null>(null);
   const [itemToDelete, setItemToDelete] = useState<string | null>(null);
 
   // View modal state (Read of C.R.U.D)
@@ -174,6 +175,15 @@ export default function Rooms() {
       [name]: value,
       ...(name === 'date' && { startDate: value })
     }));
+
+    // Clear individual field error on change
+    if (errors[name]) {
+      setErrors(prev => {
+        const next = { ...prev };
+        delete next[name];
+        return next;
+      });
+    }
   };
 
   const calculateDerivedFields = () => {
@@ -194,23 +204,51 @@ export default function Rooms() {
 
   const validateForm = () => {
     const newErrors: Record<string, string> = {};
-    if (!formData.date) newErrors.date = "Date is required";
-    if (!formData.endDate) newErrors.endDate = "End Date is required";
-    if (!formData.organizer.trim()) newErrors.organizer = "Organizer is required";
-    if (!formData.presenter.trim()) newErrors.presenter = "Presenter is required";
-    if (!formData.programName.trim()) newErrors.programName = "Program Name is required";
-    if (!formData.participants || formData.participants < 1) newErrors.participants = "Must be at least 1";
-    if (!formData.beneficiaries || formData.beneficiaries.length === 0) newErrors.beneficiaries = "Select at least one beneficiary";
+    if (!formData.date) newErrors.date = "Date (start date) is required";
+    if (!formData.endDate) newErrors.endDate = "End date is required";
+    if (formData.date && formData.endDate && new Date(formData.endDate) < new Date(formData.date)) {
+      newErrors.endDate = "End date cannot be earlier than start date";
+    }
+    if (!formData.roomType?.trim()) newErrors.roomType = "Room selection is required";
+    if (!formData.programName?.trim()) newErrors.programName = "Program / Event Name is required";
+    if (!formData.organizer?.trim()) newErrors.organizer = "Organizer is required";
+    if (!formData.presenter?.trim()) newErrors.presenter = "Presenter / Facilitator is required";
+    if (!formData.eventType?.trim()) newErrors.eventType = "Event type is required";
+    if (!formData.category?.trim()) newErrors.category = "Event category is required";
+    if (!formData.description?.trim()) newErrors.description = "Event description is required";
+    if (formData.participants === undefined || formData.participants === null || Number(formData.participants) < 1) {
+      newErrors.participants = "Number of participants must be at least 1";
+    }
+    if (!formData.beneficiaries || formData.beneficiaries.length === 0) {
+      newErrors.beneficiaries = "Select at least one beneficiary";
+    }
+
     setErrors(newErrors);
-    return Object.keys(newErrors).length === 0;
+    if (Object.keys(newErrors).length > 0) {
+      setSubmitError("Please fill in all required fields before submitting.");
+      return false;
+    }
+    setSubmitError(null);
+    return true;
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setSubmitError(null);
+
+    // CRITICAL: Block submission if any required data is missing/empty
     if (!validateForm()) return;
+
     try {
       const derived = calculateDerivedFields();
-      const payload = { ...formData, ...derived };
+      const payload = { 
+        ...formData, 
+        ...derived,
+        description: formData.description.trim(),
+        organizer: formData.organizer.trim(),
+        presenter: formData.presenter.trim(),
+        programName: formData.programName.trim(),
+      };
 
       // Validation: Check double booking
       const conflict = bookings.find(b => 
@@ -221,12 +259,12 @@ export default function Rooms() {
       );
 
       if (conflict) {
-        // FIX: was console.error only — the form would silently close nothing
-        // and give the user zero feedback that their save was blocked.
+        const conflictMsg = `Room already booked for this date by ${conflict.organizer}`;
         setErrors(prev => ({
           ...prev,
-          date: `Room already booked for this date by ${conflict.organizer}`
+          date: conflictMsg
         }));
+        setSubmitError(conflictMsg);
         return;
       }
 
@@ -237,8 +275,9 @@ export default function Rooms() {
       }
       
       handleCancel();
-    } catch {
-      // handled by useCrud
+    } catch (err: any) {
+      const errorMsg = getErrorMessage(err, 'Failed to save booking');
+      setSubmitError(errorMsg);
     }
   };
 
@@ -259,6 +298,7 @@ export default function Rooms() {
       paymentStatus: booking.paymentStatus,
     });
     setErrors({});
+    setSubmitError(null);
     setEditingId(booking._id);
     setIsFormOpen(true);
   };
@@ -287,6 +327,7 @@ export default function Rooms() {
     setIsFormOpen(false);
     setEditingId(null);
     setErrors({});
+    setSubmitError(null);
     setFormData({ ...INITIAL_FORM_DATA });
   };
 
@@ -587,33 +628,60 @@ export default function Rooms() {
             </div>
           </div>
           <form onSubmit={handleSubmit} className="p-6">
+            {submitError && (
+              <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-xl flex items-start gap-3 text-red-900 animate-in fade-in duration-200">
+                <AlertCircle className="w-5 h-5 text-red-600 shrink-0 mt-0.5" />
+                <div className="flex-1">
+                  <h4 className="text-sm font-semibold">Unable to Save Booking</h4>
+                  <p className="text-xs mt-0.5 text-red-700 leading-relaxed">{submitError}</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setSubmitError(null)}
+                  className="text-red-400 hover:text-red-600 p-0.5 rounded-lg hover:bg-red-100 transition-colors"
+                  aria-label="Dismiss error"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+            )}
+
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               
               <div>
-                <label className="block text-sm font-medium text-zinc-700 mb-1">Date</label>
+                <label className="block text-sm font-medium text-zinc-700 mb-1">
+                  Start Date <span className="text-red-500">*</span>
+                </label>
                 <input 
                   type="date" 
                   name="date" 
                   required
                   value={formData.date} 
                   onChange={handleChange}
-                  className="w-full px-3 py-2 border border-zinc-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-zinc-900 focus:border-transparent text-sm"
+                  className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-zinc-900 focus:border-transparent text-sm ${
+                    errors.date ? 'border-red-400 bg-red-50/20' : 'border-zinc-200'
+                  }`}
                 />
                 {errors.date && <p className="text-xs text-red-500 mt-1">{errors.date}</p>}
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-zinc-700 mb-1">Room</label>
+                <label className="block text-sm font-medium text-zinc-700 mb-1">
+                  Room <span className="text-red-500">*</span>
+                </label>
                 <select 
                   name="roomType" 
                   value={formData.roomType} 
                   onChange={handleChange}
-                  className="w-full px-3 py-2 border border-zinc-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-zinc-900 focus:border-transparent text-sm bg-white"
+                  className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-zinc-900 focus:border-transparent text-sm bg-white ${
+                    errors.roomType ? 'border-red-400 bg-red-50/20' : 'border-zinc-200'
+                  }`}
                 >
                   {ROOM_INVENTORY.map(r => (
                     <option key={r.name} value={r.name}>{r.name} - {r.rate} GHS/day</option>
                   ))}
                 </select>
+                {errors.roomType && <p className="text-xs text-red-500 mt-1">{errors.roomType}</p>}
               </div>
 
               <div>
@@ -631,49 +699,63 @@ export default function Rooms() {
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-zinc-700 mb-1">Program / Event Name</label>
+                <label className="block text-sm font-medium text-zinc-700 mb-1">
+                  Program / Event Name <span className="text-red-500">*</span>
+                </label>
                 <input 
                   type="text" 
                   name="programName" 
                   required
                   value={formData.programName} 
                   onChange={handleChange}
-                  className="w-full px-3 py-2 border border-zinc-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-zinc-900 focus:border-transparent text-sm"
+                  className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-zinc-900 focus:border-transparent text-sm ${
+                    errors.programName ? 'border-red-400 bg-red-50/20' : 'border-zinc-200'
+                  }`}
                   placeholder="e.g. Annual Tech Summit"
                 />
                 {errors.programName && <p className="text-xs text-red-500 mt-1">{errors.programName}</p>}
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-zinc-700 mb-1">Event Organizer</label>
+                <label className="block text-sm font-medium text-zinc-700 mb-1">
+                  Event Organizer <span className="text-red-500">*</span>
+                </label>
                 <input 
                   type="text" 
                   name="organizer" 
                   required
                   value={formData.organizer} 
                   onChange={handleChange}
-                  className="w-full px-3 py-2 border border-zinc-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-zinc-900 focus:border-transparent text-sm"
+                  className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-zinc-900 focus:border-transparent text-sm ${
+                    errors.organizer ? 'border-red-400 bg-red-50/20' : 'border-zinc-200'
+                  }`}
                   placeholder="Name or Organization"
                 />
                 {errors.organizer && <p className="text-xs text-red-500 mt-1">{errors.organizer}</p>}
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-zinc-700 mb-1">Presenter / Facilitator</label>
+                <label className="block text-sm font-medium text-zinc-700 mb-1">
+                  Presenter / Facilitator <span className="text-red-500">*</span>
+                </label>
                 <input 
                   type="text" 
                   name="presenter" 
                   required
                   value={formData.presenter} 
                   onChange={handleChange}
-                  className="w-full px-3 py-2 border border-zinc-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-zinc-900 focus:border-transparent text-sm"
+                  className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-zinc-900 focus:border-transparent text-sm ${
+                    errors.presenter ? 'border-red-400 bg-red-50/20' : 'border-zinc-200'
+                  }`}
                   placeholder="Name of Presenter"
                 />
                 {errors.presenter && <p className="text-xs text-red-500 mt-1">{errors.presenter}</p>}
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-zinc-700 mb-1">Event Type</label>
+                <label className="block text-sm font-medium text-zinc-700 mb-1">
+                  Event Type <span className="text-red-500">*</span>
+                </label>
                 <select 
                   name="eventType" 
                   value={formData.eventType} 
@@ -682,10 +764,13 @@ export default function Rooms() {
                 >
                   {EVENT_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
                 </select>
+                {errors.eventType && <p className="text-xs text-red-500 mt-1">{errors.eventType}</p>}
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-zinc-700 mb-1">Event Category</label>
+                <label className="block text-sm font-medium text-zinc-700 mb-1">
+                  Event Category <span className="text-red-500">*</span>
+                </label>
                 <select 
                   name="category" 
                   value={formData.category} 
@@ -694,10 +779,13 @@ export default function Rooms() {
                 >
                   {CATEGORIES.map(t => <option key={t} value={t}>{t}</option>)}
                 </select>
+                {errors.category && <p className="text-xs text-red-500 mt-1">{errors.category}</p>}
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-zinc-700 mb-1">No. of Participants</label>
+                <label className="block text-sm font-medium text-zinc-700 mb-1">
+                  No. of Participants <span className="text-red-500">*</span>
+                </label>
                 <input 
                   type="number" 
                   name="participants" 
@@ -705,48 +793,62 @@ export default function Rooms() {
                   min="1"
                   value={formData.participants} 
                   onChange={handleChange}
-                  className="w-full px-3 py-2 border border-zinc-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-zinc-900 focus:border-transparent text-sm"
+                  className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-zinc-900 focus:border-transparent text-sm ${
+                    errors.participants ? 'border-red-400 bg-red-50/20' : 'border-zinc-200'
+                  }`}
                 />
                 {errors.participants && <p className="text-xs text-red-500 mt-1">{errors.participants}</p>}
               </div>
 
               <div className="md:col-span-2 lg:col-span-3">
-                <label className="block text-sm font-medium text-zinc-700 mb-1">Beneficiaries</label>
+                <label className="block text-sm font-medium text-zinc-700 mb-1">
+                  Beneficiaries <span className="text-red-500">*</span>
+                </label>
                 <select 
                   name="beneficiaries" 
                   required
                   value={formData.beneficiaries} 
                   onChange={handleChange}
-                  className="w-full px-3 py-2 border border-zinc-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-zinc-900 focus:border-transparent text-sm bg-white"
+                  className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-zinc-900 focus:border-transparent text-sm bg-white ${
+                    errors.beneficiaries ? 'border-red-400 bg-red-50/20' : 'border-zinc-200'
+                  }`}
                 >
                   {BENEFICIARIES.map(t => <option key={t} value={t}>{t}</option>)}
                 </select>
-                {/* FIX: this error message existed in state but was never rendered,
-                    so a blocked submit gave the user zero visible feedback. */}
                 {errors.beneficiaries && <p className="text-xs text-red-500 mt-1">{errors.beneficiaries}</p>}
               </div>
               
               <div className="md:col-span-2 lg:col-span-3">
-                <label className="block text-sm font-medium text-zinc-700 mb-1">Event Description</label>
+                <label className="block text-sm font-medium text-zinc-700 mb-1">
+                  Event Description <span className="text-red-500">*</span>
+                </label>
                 <textarea 
                   name="description" 
                   rows={3}
+                  required
                   value={formData.description} 
                   onChange={handleChange}
-                  className="w-full px-3 py-2 border border-zinc-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-zinc-900 focus:border-transparent text-sm"
-                  placeholder="Optional details about the event..."
+                  className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-zinc-900 focus:border-transparent text-sm ${
+                    errors.description ? 'border-red-400 bg-red-50/20' : 'border-zinc-200'
+                  }`}
+                  placeholder="Detailed description of the program/event (required)..."
                 />
+                {errors.description && <p className="text-xs text-red-500 mt-1">{errors.description}</p>}
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-zinc-700 mb-1">When does the event End</label>
+                <label className="block text-sm font-medium text-zinc-700 mb-1">
+                  When does the event End <span className="text-red-500">*</span>
+                </label>
                 <input 
                   type="date" 
                   name="endDate" 
                   required
                   value={formData.endDate} 
                   onChange={handleChange}
-                  className="w-full px-3 py-2 border border-zinc-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-zinc-900 focus:border-transparent text-sm"
+                  className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-zinc-900 focus:border-transparent text-sm ${
+                    errors.endDate ? 'border-red-400 bg-red-50/20' : 'border-zinc-200'
+                  }`}
                 />
                 {errors.endDate && <p className="text-xs text-red-500 mt-1">{errors.endDate}</p>}
               </div>

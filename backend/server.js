@@ -1,6 +1,7 @@
 require('dotenv').config();
 const express = require('express');
 const path = require('path');
+const fs = require('fs');
 const cookieParser = require('cookie-parser');
 const connectDB = require('./src/config/db');
 const cors = require('cors');
@@ -54,9 +55,44 @@ app.use('/uploads', protect, express.static(path.join(__dirname, 'uploads')));
 app.use('/IACMOBILE APP', express.static(path.join(__dirname, '../IACMOBILE APP')));
 app.use('/iacmobile-app', express.static(path.join(__dirname, '../IACMOBILE APP')));
 app.use('/attendanceForm', express.static(path.join(__dirname, '../attendanceForm')));
-app.use(express.static(path.join(__dirname, '../frontend/dist')));
+const distPath = path.join(__dirname, '../frontend/dist');
+const indexPath = path.join(distPath, 'index.html');
+
+if (fs.existsSync(distPath)) {
+    app.use(express.static(distPath));
+}
+
 app.get(/^(?!\/api).*/, (req, res) => {
-    res.sendFile(path.join(__dirname, '../frontend/dist/index.html'));
+    if (fs.existsSync(indexPath)) {
+        return res.sendFile(indexPath);
+    }
+    res.status(200).send(`
+      <!DOCTYPE html>
+      <html lang="en">
+      <head>
+        <meta charset="UTF-8">
+        <title>IAC System — Setup Notice</title>
+        <style>
+          body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #0f172a; color: #f8fafc; display: flex; align-items: center; justify-content: center; min-height: 100vh; margin: 0; padding: 24px; box-sizing: border-box; }
+          .card { background: #1e293b; padding: 36px; border-radius: 12px; max-width: 580px; width: 100%; box-shadow: 0 10px 25px rgba(0,0,0,0.5); border: 1px solid #334155; }
+          h2 { color: #38bdf8; margin-top: 0; font-size: 22px; }
+          p { color: #94a3b8; line-height: 1.6; font-size: 14px; }
+          code { background: #334155; padding: 3px 6px; border-radius: 4px; color: #f43f5e; font-size: 13px; font-family: Consolas, monospace; }
+          .box { background: #090d16; padding: 14px 18px; border-radius: 8px; margin: 16px 0; border: 1px solid #1e293b; font-family: Consolas, monospace; font-size: 13px; color: #38bdf8; line-height: 1.6; }
+        </style>
+      </head>
+      <body>
+        <div class="card">
+          <h2>Frontend Build Not Found (dist/index.html)</h2>
+          <p>The backend server is running, but the frontend has not been compiled yet on your machine.</p>
+          <p><strong>To run with pre-built frontend:</strong></p>
+          <div class="box">npm run build<br>npm start</div>
+          <p><strong>Or to run in development mode with live reload:</strong></p>
+          <div class="box"># Terminal 1 (Backend):<br>cd backend &amp;&amp; npm run dev<br><br># Terminal 2 (Frontend):<br>cd frontend &amp;&amp; npm run dev</div>
+        </div>
+      </body>
+      </html>
+    `);
 });
 
 app.use((err, req, res, next) => {
@@ -72,8 +108,11 @@ app.use((err, req, res, next) => {
 
 app.use((err,req,res,next)=>{
     console.error(err.stack);
-    res.status(err.statusCode || 500).json({
-        message: err.message || 'Internal server error',
+    const isClientError = err.name === 'ValidationError' || err.name === 'CastError' || err.statusCode === 400 || (err.message && err.message.toLowerCase().includes('validation'));
+    const statusCode = err.statusCode || (isClientError ? 400 : 500);
+    res.status(statusCode).json({
+        status: 'error',
+        message: err.message || (statusCode >= 500 ? 'Internal server error' : 'Request failed'),
     });
 });
 

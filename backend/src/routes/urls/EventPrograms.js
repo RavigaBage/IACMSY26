@@ -76,6 +76,7 @@ router.patch('/event-program/:id', restrictTo('user', 'admin'), async (req, res)
 
     if (!updatedRecord) {
       return res.status(404).json({
+        status: 'error',
         message: 'Record not found'
       });
     }
@@ -86,9 +87,10 @@ router.patch('/event-program/:id', restrictTo('user', 'admin'), async (req, res)
     });
 
   } catch (err) {
-    res.status(500).json({
+    const isClientError = err.name === 'ValidationError' || err.name === 'CastError';
+    res.status(isClientError ? 400 : 500).json({
       status: 'error',
-      message: err.message
+      message: err.message || 'An error occurred while updating the booking.'
     });
   }
 });
@@ -100,6 +102,7 @@ router.delete('/event-program/:id', restrictTo('user', 'admin'), async (req, res
 
     if (!deletedRecord) {
       return res.status(404).json({
+        status: 'error',
         message: 'Record not found'
       });
     }
@@ -112,7 +115,7 @@ router.delete('/event-program/:id', restrictTo('user', 'admin'), async (req, res
   } catch (err) {
     res.status(500).json({
       status: 'error',
-      message: err.message
+      message: err.message || 'An error occurred while deleting the booking.'
     });
   }
 });
@@ -139,27 +142,90 @@ router.post(
     restrictTo('user', 'admin'),
     async (req, res) => {
         try {
+            const {
+                date,
+                endDate,
+                organizer,
+                presenter,
+                programName,
+                participants,
+                eventType,
+                category,
+                beneficiaries,
+                description,
+                roomType,
+                roomNumber,
+                paymentStatus,
+                rate,
+                amountDue,
+                status
+            } = req.body;
+
+            // Validate all required fields
+            const missing = [];
+            if (!date) missing.push('date (start date)');
+            if (!endDate) missing.push('endDate');
+            if (!organizer || !String(organizer).trim()) missing.push('organizer');
+            if (!presenter || !String(presenter).trim()) missing.push('presenter');
+            if (!programName || !String(programName).trim()) missing.push('programName');
+            if (!description || !String(description).trim()) missing.push('description');
+            if (!roomType || !String(roomType).trim()) missing.push('roomType');
+            if (!eventType || !String(eventType).trim()) missing.push('eventType');
+            if (!category || !String(category).trim()) missing.push('category');
+            if (!beneficiaries || !String(beneficiaries).trim()) missing.push('beneficiaries');
+            if (participants === undefined || participants === null || isNaN(Number(participants)) || Number(participants) < 1) {
+                missing.push('participants (minimum 1)');
+            }
+
+            if (missing.length > 0) {
+                return res.status(400).json({
+                    status: "error",
+                    message: `Booking validation failed: Required field(s) missing or empty (${missing.join(', ')}).`,
+                    data: null,
+                });
+            }
+
+            if (new Date(endDate) < new Date(date)) {
+                return res.status(400).json({
+                    status: "error",
+                    message: "Booking validation failed: End date cannot be earlier than start date.",
+                    data: null,
+                });
+            }
+
             const normalizeDataSchema = {
-                name: req.body.presenter || "",
-                date: req.body.date || "",
-                startDate: req.body.date || "",
-                endDate: req.body.endDate || "",
-                organizer: req.body.organizer || "",
-                presenter: req.body.presenter || "",
-                programName: req.body.programName || "",
-                participants: req.body.participants || 0,
-                eventType: req.body.eventType || "workshop",
-                category: req.body.category || "programming",
-                beneficiaries: req.body.beneficiaries || "students",
-                description: req.body.description || "",
-                roomType: req.body.roomType || "conference",
-                roomNumber: req.body.roomNumber || "3",
+                name: String(presenter).trim(),
+                date: new Date(date),
+                startDate: new Date(date),
+                endDate: new Date(endDate),
+                organizer: String(organizer).trim(),
+                presenter: String(presenter).trim(),
+                programName: String(programName).trim(),
+                participants: Number(participants) >= 1 ? Number(participants) : 1,
+                eventType: eventType || "workshop",
+                category: category || "programming",
+                beneficiaries: beneficiaries || "students",
+                description: String(description).trim(),
+                roomType: roomType || "Conference Room",
+                roomNumber: roomNumber ? Number(roomNumber) : 1,
+                paymentStatus: paymentStatus || "Unpaid",
+                rate: typeof rate === 'number' ? rate : 0,
+                amountDue: typeof amountDue === 'number' ? amountDue : (typeof rate === 'number' ? rate : 0),
+                status: status || "Booked",
             };
 
             const totalSpan = EventSpan(
                 normalizeDataSchema.startDate,
                 normalizeDataSchema.endDate
             );
+
+            if (isNaN(totalSpan) || totalSpan < 1) {
+                return res.status(400).json({
+                    status: "error",
+                    message: "Booking validation failed: Invalid date range.",
+                    data: null,
+                });
+            }
 
             const originalStartDate = normalizeDataSchema.startDate;
             const bookings = [];
@@ -170,7 +236,7 @@ router.post(
                 bookings.push({
                     ...normalizeDataSchema,
                     startDate: bookingDate,
-                    date:bookingDate
+                    date: bookingDate
                 });
             }
 
@@ -183,7 +249,8 @@ router.post(
             });
 
         } catch (err) {
-            res.status(500).json({
+            const isClientError = err.name === 'ValidationError' || err.name === 'CastError' || err.statusCode === 400 || (err.message && err.message.toLowerCase().includes('validation'));
+            res.status(isClientError ? 400 : 500).json({
                 status: "error",
                 message:
                     err.message ||
