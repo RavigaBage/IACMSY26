@@ -82,6 +82,22 @@ function InfoRow({ label, value }: { label: string; value: React.ReactNode }) {
   );
 }
 
+const INITIAL_FORM_DATA = {
+  date: '',
+  roomType: ROOM_INVENTORY[0].name,
+  organizer: '',
+  presenter: '',
+  programName: '',
+  participants: 1,
+  eventType: EVENT_TYPES[0],
+  category: CATEGORIES[0],
+  beneficiaries: BENEFICIARIES[0],
+  description: '',
+  endDate: '',
+  startDate: '',
+  paymentStatus: 'Unpaid',
+};
+
 export default function Rooms() {
   const [viewMode, setViewMode] = useState<'calendar' | 'list'>('calendar');
   
@@ -96,7 +112,11 @@ export default function Rooms() {
   } = useCrud<any>({ endpoint: 'api/bookings/event-program?limit=500' });
 
   // API returns { status, data: [...] } instead of direct array sometimes.
-  const bookings: Booking[] = bookingsData?.data || bookingsData || "";
+  // FIX: was `|| ""` — if bookingsData is falsy/unshaped, bookings became
+  // the string "", and any later `bookings.find(...)` call would throw
+  // (strings have no .find), silently swallowed by an empty catch block.
+  // Falling back to [] keeps every array method safe.
+  const bookings: Booking[] = bookingsData?.data || bookingsData || [];
 
   // Search & Filter
   const [searchQuery, setSearchQuery] = useState('');
@@ -135,21 +155,7 @@ export default function Rooms() {
   // View modal state (Read of C.R.U.D)
   const [viewBooking, setViewBooking] = useState<Booking | null>(null);
 
-  const [formData, setFormData] = useState({
-    date: '',
-    roomType: ROOM_INVENTORY[0].name,
-    organizer: '',
-    presenter: '',
-    programName: '',
-    participants: 1,
-    eventType: EVENT_TYPES[0],
-    category: CATEGORIES[0],
-    beneficiaries:'',
-    description: '',
-    endDate:'',
-    startDate:'',
-    paymentStatus: 'Unpaid',
-  });
+  const [formData, setFormData] = useState({ ...INITIAL_FORM_DATA });
 
   useEffect(() => {
     fetchBookings();
@@ -181,7 +187,7 @@ export default function Rooms() {
     const today = startOfDay(new Date());
     
     if (bDate < today) status = 'Completed';
-    else if (bDate.getTime() === today.getTime()) status = 'Occupied';
+    else if (bDate.getTime() === today.getTime()) status = 'OCCUPIED';
     
     return { rate, amountDue, status };
   };
@@ -195,7 +201,6 @@ export default function Rooms() {
     if (!formData.programName.trim()) newErrors.programName = "Program Name is required";
     if (!formData.participants || formData.participants < 1) newErrors.participants = "Must be at least 1";
     if (!formData.beneficiaries || formData.beneficiaries.length === 0) newErrors.beneficiaries = "Select at least one beneficiary";
-    console.log('error validating',newErrors);
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
@@ -216,7 +221,12 @@ export default function Rooms() {
       );
 
       if (conflict) {
-        console.error(`Room already booked for this date by ${conflict.organizer}`);
+        // FIX: was console.error only — the form would silently close nothing
+        // and give the user zero feedback that their save was blocked.
+        setErrors(prev => ({
+          ...prev,
+          date: `Room already booked for this date by ${conflict.organizer}`
+        }));
         return;
       }
 
@@ -242,12 +252,13 @@ export default function Rooms() {
       participants: booking.participants,
       eventType: booking.eventType,
       category: booking.category,
-      beneficiaries: booking.beneficiaries,
+      beneficiaries: booking.beneficiaries || BENEFICIARIES[0],
       description: booking.description || '',
-      endDate:new Date(booking.endDate).toISOString().slice(0, 10),
-      startDate:new Date(booking.date).toISOString().slice(0, 10),
+      endDate: new Date(booking.endDate).toISOString().slice(0, 10),
+      startDate: new Date(booking.date).toISOString().slice(0, 10),
       paymentStatus: booking.paymentStatus,
     });
+    setErrors({});
     setEditingId(booking._id);
     setIsFormOpen(true);
   };
@@ -276,21 +287,7 @@ export default function Rooms() {
     setIsFormOpen(false);
     setEditingId(null);
     setErrors({});
-    setFormData({
-      date: '',
-      roomType: ROOM_INVENTORY[0].name,
-      organizer: '',
-      presenter: '',
-      programName: '',
-      participants: 1,
-      eventType: EVENT_TYPES[0],
-      category: CATEGORIES[0],
-      beneficiaries: "",
-      description: '',
-      endDate:'',
-      startDate:'',
-      paymentStatus: 'Unpaid',
-    });
+    setFormData({ ...INITIAL_FORM_DATA });
   };
 
   const openNewBooking = (date?: Date) => {
@@ -608,7 +605,7 @@ export default function Rooms() {
               <div>
                 <label className="block text-sm font-medium text-zinc-700 mb-1">Room</label>
                 <select 
-                  name="room" 
+                  name="roomType" 
                   value={formData.roomType} 
                   onChange={handleChange}
                   className="w-full px-3 py-2 border border-zinc-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-zinc-900 focus:border-transparent text-sm bg-white"
@@ -724,7 +721,9 @@ export default function Rooms() {
                 >
                   {BENEFICIARIES.map(t => <option key={t} value={t}>{t}</option>)}
                 </select>
-                
+                {/* FIX: this error message existed in state but was never rendered,
+                    so a blocked submit gave the user zero visible feedback. */}
+                {errors.beneficiaries && <p className="text-xs text-red-500 mt-1">{errors.beneficiaries}</p>}
               </div>
               
               <div className="md:col-span-2 lg:col-span-3">
@@ -749,7 +748,7 @@ export default function Rooms() {
                   onChange={handleChange}
                   className="w-full px-3 py-2 border border-zinc-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-zinc-900 focus:border-transparent text-sm"
                 />
-                {errors.date && <p className="text-xs text-red-500 mt-1">{errors.date}</p>}
+                {errors.endDate && <p className="text-xs text-red-500 mt-1">{errors.endDate}</p>}
               </div>
 
             </div>

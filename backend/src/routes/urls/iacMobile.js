@@ -397,6 +397,7 @@ router.post('/checkin-tickets/:id/confirm', async (req, res) => {
       contactNumber: finalPhone,
       gender: gender || 'other',
       timeIn: new Date().toLocaleTimeString('en-US', { hour12: false }),
+      timeOut: null,
       Signature: `Mobile Ticket Pass ${ticket.ticketCode}`,
     });
 

@@ -34,7 +34,7 @@ const InternetLoungeSchema = new mongoose.Schema(
         }, 
         timeOut:{
             type:String,
-            default:Date.now,
+            default:null,
         },
         Signature:{
             type:String,
