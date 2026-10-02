@@ -1,7 +1,7 @@
 # ============================================================
 # Stage 1 — Build the React frontend
 # ============================================================
-FROM node:22-alpine AS frontend-builder
+FROM node:22 AS frontend-builder
 
 WORKDIR /build
 
@@ -10,53 +10,59 @@ COPY package.json package-lock.json ./
 COPY frontend/package.json ./frontend/
 COPY backend/package.json ./backend/
 
-# Install ALL workspace deps from the lockfile
-# --ignore-scripts skips mongodb-memory-server binary download (not needed at build time)
-# Increased timeouts to prevent EIDLETIMEOUT during large frontend installs
+# Install frontend dependencies
 RUN npm config set fetch-retries 5 && \
     npm config set fetch-retry-mintimeout 20000 && \
     npm config set fetch-retry-maxtimeout 120000 && \
-    npm ci --ignore-scripts --workspace=frontend
+    npm ci --workspace=frontend && \
+    npm install @rolldown/binding-linux-x64-gnu lightningcss-linux-x64-gnu --no-save
 
 # Copy frontend source
 COPY frontend/ ./frontend/
 
-# Build the production bundle
+# Build production frontend
 WORKDIR /build/frontend
 RUN npm run build
+
 
 # ============================================================
 # Stage 2 — Production backend image
 # ============================================================
-FROM node:22-alpine AS production
+FROM node:22 AS production
 
 WORKDIR /app
 
-# Install only backend workspace deps
+# Create non-root user first
+RUN groupadd -r appgroup && \
+    useradd -r -g appgroup appuser
+
+# Copy workspace manifests
 COPY package.json package-lock.json ./
 COPY frontend/package.json ./frontend/
 COPY backend/package.json ./backend/
 
-# Increased timeouts to prevent EIDLETIMEOUT
+# Install backend production dependencies
 RUN npm config set fetch-retries 5 && \
     npm config set fetch-retry-mintimeout 20000 && \
     npm config set fetch-retry-maxtimeout 120000 && \
     npm ci --omit=dev --workspace=backend && \
     npm install mongodb-memory-server@^11.2.0 --no-save
 
-# Copy backend source
-COPY backend/ ./backend/
+# Copy backend source with correct ownership
+COPY --chown=appuser:appgroup backend/ ./backend/
 
-# Copy the built frontend dist from stage 1
-COPY --from=frontend-builder /build/frontend/dist ./frontend/dist
+# Copy built frontend with correct ownership
+COPY --chown=appuser:appgroup \
+    --from=frontend-builder /build/frontend/dist ./frontend/dist
 
-# Copy optional static assets the backend serves
-COPY attendanceForm/ ./attendanceForm/
-COPY ["IACMOBILE APP/", "./IACMOBILE APP/"]
+# Copy static assets with correct ownership
+COPY --chown=appuser:appgroup attendanceForm/ ./attendanceForm/
+COPY --chown=appuser:appgroup ["IACMOBILE APP/", "./IACMOBILE APP/"]
 
-# Non-root user for security
-RUN addgroup -S appgroup && adduser -S appuser -G appgroup
-RUN chown -R appuser:appgroup /app
+# Make uploads directory available to the application
+RUN mkdir -p /app/backend/uploads && \
+    chown appuser:appgroup /app/backend/uploads
+
 USER appuser
 
 EXPOSE 5000
