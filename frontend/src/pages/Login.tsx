@@ -1,11 +1,15 @@
 'use client';
 
 import { useEffect, useState, type FormEvent } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Mail, Lock, Eye, EyeOff } from 'lucide-react';
 import { api, setAccessToken } from '../lib/api';
+import { useAuth } from '../contexts/AuthContext';
 const HERO_PATTERN = `data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140' viewBox='0 0 140 140'%3E%3Cg fill='none' stroke='%23FFFFFF' stroke-width='1.5' opacity='0.5'%3E%3Ccircle cx='70' cy='70' r='46'/%3E%3Ccircle cx='70' cy='70' r='30'/%3E%3Cpath d='M70 24a46 46 0 0 1 46 46'/%3E%3Cpath d='M24 70a46 46 0 0 1 46-46'/%3E%3Ccircle cx='0' cy='0' r='18'/%3E%3Ccircle cx='140' cy='0' r='18'/%3E%3Ccircle cx='0' cy='140' r='18'/%3E%3Ccircle cx='140' cy='140' r='18'/%3E%3C/g%3E%3C/svg%3E`;
 
 export default function LoginPage() {
+  const navigate = useNavigate();
+  const { isAuthenticated, isLoading, checkAuth } = useAuth();
   const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -15,46 +19,49 @@ export default function LoginPage() {
   const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setError('');
+
+    const cleanId = identifier.trim();
+    if (!cleanId) {
+      setError('Please enter your email or phone number.');
+      return;
+    }
+    if (!password) {
+      setError('Please enter your password.');
+      return;
+    }
+
     setIsSubmitting(true);
 
     try {
-
-      const res = await api.post('api/auth/login', { identifier, password });
-      if (res?.status === 'success') {
-        setAccessToken(res?.access);
-        window.location.href = '/';
+      const res = await api.post('/api/auth/login', { identifier: cleanId, password });
+      if (res?.status === 'success' && res?.access) {
+        setAccessToken(res.access);
+        await checkAuth();
+        navigate('/', { replace: true });
+        return;
       }
-      if (res?.status != 'success') throw new Error('Invalid email/phone or password.');
-    } catch (err) {
-      const errorCode = err instanceof Error ? err.message : 'Something went wrong. Please try again.';
-      if (errorCode == 'Bad Request') {
-        setError('Invalid email/phone or password. Try again.');
+      if (res?.status !== 'success') {
+        throw new Error(res?.message || res?.error || 'Invalid email/phone or password.');
+      }
+    } catch (err: any) {
+      const rawMsg = err?.message || 'Something went wrong. Please try again.';
+      if (rawMsg === 'Bad Request' || rawMsg.includes('400')) {
+        setError('Invalid email/phone or password. Please try again.');
+      } else if (rawMsg.includes('<body') || rawMsg.includes('<!DOCTYPE') || rawMsg.includes('Unexpected token') || rawMsg.includes('SyntaxError')) {
+        setError('Unable to authenticate with the server. Please verify your credentials or try again later.');
       } else {
-        setError(errorCode);
+        setError(rawMsg);
       }
-
     } finally {
       setIsSubmitting(false);
     }
   };
 
-  const checkAuth = async (): Promise<boolean> => {
-    try {
-      await api.get("api/auth/verify");
-      return true;
-    } catch {
-      return false
-    }
-  };
   useEffect(() => {
-    const checkUserAuth = async () => {
-      const isAuthenticated = await checkAuth();
-      if (isAuthenticated) {
-        window.location.href = '/';
-      }
-    };
-    checkUserAuth();
-  }, []);
+    if (!isLoading && isAuthenticated) {
+      navigate('/', { replace: true });
+    }
+  }, [isAuthenticated, isLoading, navigate]);
 
   return (
     <div className="min-h-screen w-full flex flex-col md:flex-row bg-white">

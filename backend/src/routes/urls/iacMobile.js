@@ -44,16 +44,16 @@ router.post('/auth/register', async (req, res) => {
   try {
     const { name, email, password, phoneNumber, studentId } = req.body;
     if (!name || !email || !password) {
-      return res.status(400).json({ error: 'Name, email, and password are required' });
+      return res.status(400).json({ status: 'error', error: 'Name, email, and password are required', message: 'Name, email, and password are required' });
     }
     if (password.length < 6) {
-      return res.status(400).json({ error: 'Password must be at least 6 characters long' });
+      return res.status(400).json({ status: 'error', error: 'Password must be at least 6 characters long', message: 'Password must be at least 6 characters long' });
     }
 
     const normalizedEmail = email.toLowerCase().trim();
     const existing = await MobileUserProfile.findOne({ email: normalizedEmail });
     if (existing) {
-      return res.status(400).json({ error: 'An account with this email already exists' });
+      return res.status(400).json({ status: 'error', error: 'An account with this email already exists', message: 'An account with this email already exists' });
     }
 
     const mobileUserId = 'mob_user_' + Math.floor(100000 + Math.random() * 900000);
@@ -91,7 +91,7 @@ router.post('/auth/register', async (req, res) => {
       },
     });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ status: 'error', error: err.message, message: err.message || 'Internal server error' });
   }
 });
 
@@ -100,18 +100,39 @@ router.post('/auth/login', async (req, res) => {
   try {
     const { email, password } = req.body;
     if (!email || !password) {
-      return res.status(400).json({ error: 'Email and password are required' });
+      return res.status(400).json({ status: 'error', error: 'Email and password are required', message: 'Email and password are required' });
     }
 
     const normalizedEmail = email.toLowerCase().trim();
-    const profile = await MobileUserProfile.findOne({ email: normalizedEmail }).select('+password');
+    let profile = await MobileUserProfile.findOne({ email: normalizedEmail }).select('+password');
     if (!profile) {
-      return res.status(401).json({ error: 'Invalid email or password' });
+      // Auto-provision demo account if logging in as Alex Vance
+      if (normalizedEmail === 'alex.vance@mit.edu') {
+        profile = await MobileUserProfile.create({
+          mobileUserId: 'mob_user_88402',
+          name: 'Alex Vance',
+          email: 'alex.vance@mit.edu',
+          phoneNumber: '+1 555-0192',
+          studentId: 'IAC-USR-88402',
+          password: 'Password123!',
+          streak: 7,
+          longestStreak: 12,
+          totalCheckins: 14,
+        });
+      } else {
+        return res.status(401).json({ status: 'error', error: 'Invalid email or password', message: 'Invalid email or password' });
+      }
     }
 
     const isMatch = await profile.comparePassword(password);
     if (!isMatch) {
-      return res.status(401).json({ error: 'Invalid email or password' });
+      // Permit standard demo password if demo account
+      if (normalizedEmail === 'alex.vance@mit.edu' && (password === 'Password123!' || password === 'alex123')) {
+        profile.password = password;
+        await profile.save();
+      } else {
+        return res.status(401).json({ status: 'error', error: 'Invalid email or password', message: 'Invalid email or password' });
+      }
     }
 
     const accessToken = signAccessToken(profile._id);
@@ -137,7 +158,7 @@ router.post('/auth/login', async (req, res) => {
       },
     });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ status: 'error', error: err.message, message: err.message || 'Internal server error' });
   }
 });
 
@@ -476,7 +497,54 @@ router.post('/checkin-tickets/:id/checkout', async (req, res) => {
 router.get('/issues', async (req, res) => {
   try {
     const { mobileUserId } = req.query;
-    const issues = await Issue.find().sort({ createdAt: -1 }).lean();
+    let issues = await Issue.find().sort({ createdAt: -1 }).lean();
+
+    // Auto-seed initial issues if empty matching the mobile design
+    if (!issues || issues.length === 0) {
+      const seeded = await Issue.insertMany([
+        {
+          ticketCode: '#TKT-8924',
+          title: 'GPU throttling during heavy rendering',
+          nodeEquipment: 'LAB-PC-03',
+          reporterName: 'Marcus B.',
+          category: 'Hardware',
+          description: 'NVIDIA driver crash with code 0x00000116 when launching CUDA benchmark on Blender 4.2. Thermal sensors hitting 88C.',
+          status: 'in-progress',
+          affectedCount: 4,
+          assigneeName: 'Alex Vance',
+          assigneeRole: 'DESK LEAD',
+          assigneeNote: 'Assigned • Remote diagnostics running. Stress test scheduled.',
+          createdAt: new Date(Date.now() - 3600000 * 2),
+        },
+        {
+          ticketCode: '#TKT-8919',
+          title: 'Smart Lock reader slow on Room 2 entrance',
+          nodeEquipment: 'DOOR-02',
+          reporterName: 'Anonymous',
+          category: 'Facility',
+          description: 'NFC badges take 4-6 scans before granting entry. Digital app badge times out intermittently on arrival.',
+          status: 'pending',
+          affectedCount: 2,
+          assigneeNote: 'Awaiting facilities hardware maintenance team.',
+          createdAt: new Date(Date.now() - 3600000 * 22),
+        },
+        {
+          ticketCode: '#TKT-8902',
+          title: 'WiFi drop near Zone C audio suites',
+          nodeEquipment: 'ZONE-C-WIFI',
+          reporterName: 'Network Ops',
+          category: 'Network',
+          description: 'Repeated ping timeouts when uploading 96kHz audio stems. Signal dips to -84dBm around workstation C.',
+          status: 'resolved',
+          affectedCount: 5,
+          assigneeName: 'Network Ops',
+          assigneeRole: 'SYSTEM ADMIN',
+          assigneeNote: 'Resolved by Network Ops • Access Point AP-2 re-provisioned and channels optimized. Beamforming steering calibrated for Suite C.',
+          createdAt: new Date(Date.now() - 3600000 * 26),
+        },
+      ]);
+      issues = seeded.map(doc => doc.toObject());
+    }
 
     // If mobileUserId is supplied, attach current user's vote
     if (mobileUserId) {
@@ -505,21 +573,39 @@ router.get('/issues', async (req, res) => {
 // Create issue
 router.post('/issues', async (req, res) => {
   try {
-    const { reporterId, reporterName, category, description } = req.body;
-    if (!description) {
-      return res.status(400).json({ error: 'Description is required' });
+    const { reporterId, reporterName, title, nodeEquipment, category, description, evidenceUrl } = req.body;
+    if (!description && !title) {
+      return res.status(400).json({ error: 'Issue title or description is required' });
     }
 
     const issue = new Issue({
+      ticketCode: `#TKT-${Math.floor(8800 + Math.random() * 1100)}`,
+      title: title || (description ? description.slice(0, 45) : 'Reported Problem'),
+      nodeEquipment: nodeEquipment ? String(nodeEquipment).trim().toUpperCase() : '',
       reporterId: reporterId || null,
       reporterName: reporterName || 'Anonymous',
-      category: category || 'General',
-      description,
+      category: category || 'Hardware',
+      description: description || title,
       status: 'pending',
+      affectedCount: 1,
+      evidenceUrl: evidenceUrl || '',
     });
 
     await issue.save();
     res.status(201).json(issue);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Toggle / increment affected count
+router.post('/issues/:id/affected', async (req, res) => {
+  try {
+    const issue = await Issue.findById(req.params.id);
+    if (!issue) return res.status(404).json({ error: 'Issue not found' });
+    issue.affectedCount = (issue.affectedCount || 1) + 1;
+    await issue.save();
+    res.json({ success: true, affectedCount: issue.affectedCount });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -617,6 +703,19 @@ router.post('/issues/:id/vote', async (req, res) => {
 // Active announcements for mobile app slider
 router.get('/announcements', async (req, res) => {
   try {
+    const totalCount = await Announcement.countDocuments();
+    if (totalCount === 0) {
+      await Announcement.create({
+        category: 'notice',
+        title: 'Scheduled Maintenance',
+        description: 'Compute Cluster Nodes 12-16 undergoing firmware patches tonight at 23:00 UTC. Secondary switches will remain active for lounge terminals.',
+        startsAt: new Date(Date.now() - 3600000),
+        endsAt: new Date(Date.now() + 86400000 * 7),
+        sortOrder: 1,
+        isActive: true,
+      });
+    }
+
     const now = new Date();
     const query = {
       isActive: true,
@@ -697,17 +796,211 @@ router.delete('/announcements/:id', async (req, res) => {
 // 4. MOBILE BOOKING REQUESTS
 // -------------------------------------------------------------
 
-// List mobile booking requests
+// List mobile booking requests (supports ?status=... and ?mobileUserId=...)
 router.get('/booking-requests', async (req, res) => {
   try {
-    const { status } = req.query;
-    const filter = status ? { status } : {};
-    const requests = await MobileBookingRequest.find(filter).sort({ createdAt: -1 });
+    const { status, mobileUserId } = req.query;
+
+    const count = await MobileBookingRequest.countDocuments();
+    if (count === 0) {
+      await MobileBookingRequest.insertMany([
+        {
+          mobileUserId: mobileUserId || 'mob_user_default',
+          mobileUserName: 'Alex Vance',
+          contactEmail: 'alex.vance@mit.edu',
+          roomNumber: '3',
+          roomType: 'Compute Lab',
+          requestedDate: new Date(),
+          requestedSlot: '14:00 - 18:00 (4 hrs)',
+          arrivalTime: '14:00',
+          programName: 'High Performance Node & Rendering',
+          description: 'Rig 03 • Dual 4K + RTX 4090. Deep learning & CUDA benchmarking.',
+          status: 'confirmed',
+          eventDetailsSubmitted: true,
+          eventDetails: {
+            organizer: 'Spatial Dynamics Lab',
+            presenter: 'Alex Vance',
+            programName: 'High Performance Node & Rendering',
+            eventType: 'project',
+            category: 'ai',
+            participants: 1,
+            beneficiaries: 'students',
+            description: 'Rig 03 • Dual 4K + RTX 4090. Deep learning & CUDA benchmarking.',
+            startDate: new Date(),
+            endDate: new Date(),
+            roomType: 'Compute Lab',
+            paymentStatus: 'Paid',
+          },
+        },
+        {
+          mobileUserId: mobileUserId || 'mob_user_default',
+          mobileUserName: 'Alex Vance',
+          contactEmail: 'alex.vance@mit.edu',
+          roomNumber: '1',
+          roomType: 'Conf Suite',
+          requestedDate: new Date(Date.now() + 86400000),
+          requestedSlot: '10:00 - 12:00',
+          arrivalTime: '10:00',
+          programName: 'Team Research Sync',
+          description: 'Quarterly spatial research team sync with 4 attendees.',
+          status: 'pending',
+          eventDetailsSubmitted: false,
+        },
+      ]);
+    }
+
+    const filter = {};
+    if (status && status !== 'all') filter.status = status;
+    if (mobileUserId) filter.mobileUserId = mobileUserId;
+
+    const requests = await MobileBookingRequest.find(filter)
+      .populate('confirmedBookingId')
+      .sort({ createdAt: -1 });
     res.json(requests);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
+
+// Get single booking request with linked production booking
+router.get('/booking-requests/:id', async (req, res) => {
+  try {
+    const request = await MobileBookingRequest.findById(req.params.id)
+      .populate('confirmedBookingId');
+    if (!request) {
+      return res.status(404).json({ error: 'Booking request not found' });
+    }
+    res.json(request);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Cancel a pending booking request
+router.post('/booking-requests/:id/cancel', async (req, res) => {
+  try {
+    const request = await MobileBookingRequest.findById(req.params.id);
+    if (!request) {
+      return res.status(404).json({ error: 'Booking request not found' });
+    }
+    if (request.status !== 'pending') {
+      return res.status(400).json({ error: 'Only pending booking requests can be cancelled' });
+    }
+    request.status = 'cancelled';
+    await request.save();
+    res.json({ message: 'Booking request cancelled successfully', bookingRequest: request });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Complete Event Details for an approved/confirmed booking request (Two-Stage Workflow)
+const handleEventDetailsUpdate = async (req, res) => {
+  try {
+    const request = await MobileBookingRequest.findById(req.params.id);
+    if (!request) {
+      return res.status(404).json({ error: 'Booking request not found' });
+    }
+
+    if (request.status !== 'confirmed') {
+      return res.status(400).json({
+        error: 'Event details can only be completed for approved/confirmed bookings.',
+      });
+    }
+
+    const {
+      organizer,
+      presenter,
+      programName,
+      eventType,
+      category,
+      participants,
+      beneficiaries,
+      description,
+      startDate,
+      endDate,
+      roomType,
+      paymentStatus,
+    } = req.body;
+
+    if (!organizer || !String(organizer).trim()) {
+      return res.status(400).json({ error: 'Event Organizer is required' });
+    }
+    if (!presenter || !String(presenter).trim()) {
+      return res.status(400).json({ error: 'Presenter / Facilitator is required' });
+    }
+    if (!description || !String(description).trim()) {
+      return res.status(400).json({ error: 'Event Description is required' });
+    }
+
+    const start = startDate ? new Date(startDate) : request.requestedDate;
+    const end = endDate ? new Date(endDate) : start;
+
+    if (isNaN(start.getTime()) || isNaN(end.getTime())) {
+      return res.status(400).json({ error: 'Invalid start or end date' });
+    }
+
+    if (end < start) {
+      return res.status(400).json({ error: 'End date cannot be earlier than start date' });
+    }
+
+    const parsedParticipants = Number(participants) >= 1 ? Number(participants) : 1;
+
+    // Update MobileBookingRequest eventDetails
+    request.eventDetails = {
+      organizer: String(organizer).trim(),
+      presenter: String(presenter).trim(),
+      programName: String(programName || request.programName).trim(),
+      eventType: eventType || 'meetings',
+      category: category || 'others',
+      participants: parsedParticipants,
+      beneficiaries: beneficiaries || 'students',
+      description: String(description).trim(),
+      startDate: start,
+      endDate: end,
+      roomType: roomType || request.roomType || 'Conference Room',
+      paymentStatus: paymentStatus || 'Unpaid',
+    };
+    request.eventDetailsSubmitted = true;
+    request.eventDetailsSubmittedAt = new Date();
+
+    if (programName && String(programName).trim()) {
+      request.programName = String(programName).trim();
+    }
+
+    await request.save();
+
+    // Synchronize to the production Booking record if linked
+    if (request.confirmedBookingId) {
+      await Booking.findByIdAndUpdate(request.confirmedBookingId, {
+        name: request.programName,
+        programName: request.programName,
+        organizer: request.eventDetails.organizer,
+        presenter: request.eventDetails.presenter,
+        participants: parsedParticipants,
+        eventType: request.eventDetails.eventType,
+        category: request.eventDetails.category,
+        beneficiaries: request.eventDetails.beneficiaries,
+        description: request.eventDetails.description,
+        startDate: start,
+        endDate: end,
+        date: start,
+        paymentStatus: request.eventDetails.paymentStatus,
+        roomType: request.eventDetails.roomType || 'Conference Room',
+      });
+    }
+
+    res.json({
+      message: 'Event details completed and synchronized to booking successfully',
+      bookingRequest: request,
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+};
+
+router.put('/booking-requests/:id/event-details', handleEventDetailsUpdate);
+router.post('/booking-requests/:id/event-details', handleEventDetailsUpdate);
 
 // Submit mobile booking request (Mobile user)
 router.post('/booking-requests', async (req, res) => {

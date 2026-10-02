@@ -87,24 +87,60 @@ async function request(
 
   if (!res.ok) {
     let errorData: any = null;
-    try {
-      errorData = await res.json();
-    } catch {
-      // response might not be JSON
+    const contentType = res.headers.get("content-type") || "";
+    if (contentType.includes("application/json")) {
+      try {
+        errorData = await res.json();
+      } catch {
+        // invalid json
+      }
+    } else {
+      try {
+        const text = await res.text();
+        if (text.trim().startsWith('{') || text.trim().startsWith('[')) {
+          errorData = JSON.parse(text);
+        }
+      } catch {
+        errorData = null;
+      }
     }
 
-    const message =
+    let message =
       res.status >= 500
         ? `Server error (${res.status}). Please try again later.`
         : (errorData?.message ||
            errorData?.error ||
-           res.statusText ||
-           'Request failed');
+           (res.status === 401 ? 'Invalid credentials or session expired.' : (res.status === 404 ? 'Requested resource not found.' : 'Request failed')));
+
+    // Clean up any stray HTML or JSON syntax error in message
+    if (typeof message === 'string' && (message.includes('<body') || message.includes('<!DOCTYPE') || message.includes('Unexpected token') || message.includes('SyntaxError'))) {
+      message = res.status === 401 ? 'Invalid email or password. Please try again.' : 'Unable to complete request. Please try again.';
+    }
 
     throw new ApiError(message, res.status, errorData);
   }
 
-  const result = await res.json();
+  let result: any = null;
+  const contentType = res.headers.get("content-type") || "";
+  if (contentType.includes("application/json")) {
+    try {
+      result = await res.json();
+    } catch {
+      throw new ApiError("Unable to process server response. Please try again.", res.status);
+    }
+  } else {
+    try {
+      const text = await res.text();
+      if (text.trim().startsWith('{') || text.trim().startsWith('[')) {
+        result = JSON.parse(text);
+      } else {
+        result = { status: 'success', data: text };
+      }
+    } catch {
+      result = { status: 'success' };
+    }
+  }
+
   if (result && result.status === 'error') {
     const message = result.message || result.error || 'Request failed';
     throw new ApiError(message, 400, result);

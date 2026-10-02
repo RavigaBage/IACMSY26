@@ -256,26 +256,30 @@ export default function IacMobile() {
         setIssues(issueList);
       }
 
-      // Announcements
-      const annoRes = await fetch('/api/iac-mobile/admin/announcements');
-      if (annoRes.ok) {
-        const data = await annoRes.json();
-        setAnnouncements(Array.isArray(data) ? data : []);
-      }
+      // Announcements & SMTP Config (only fetched on initial load / manual refresh)
+      if (isManual || prevTicketIdsRef.current === null) {
+        const [annoRes, smtpRes] = await Promise.all([
+          fetch('/api/iac-mobile/admin/announcements'),
+          fetch('/api/iac-mobile/smtp-config'),
+        ]);
 
-      // SMTP Config
-      const smtpRes = await fetch('/api/iac-mobile/smtp-config');
-      if (smtpRes.ok) {
-        const data = await smtpRes.json();
-        setSmtpConfig({
-          host: data.host || 'smtp.gmail.com',
-          port: data.port || 587,
-          secure: data.secure || false,
-          user: data.user || '',
-          pass: data.pass || '',
-          fromEmail: data.fromEmail || '',
-          fromName: data.fromName || 'IAC Mobile System',
-        });
+        if (annoRes.ok) {
+          const data = await annoRes.json();
+          setAnnouncements(Array.isArray(data) ? data : []);
+        }
+
+        if (smtpRes.ok) {
+          const data = await smtpRes.json();
+          setSmtpConfig({
+            host: data.host || 'smtp.gmail.com',
+            port: data.port || 587,
+            secure: data.secure || false,
+            user: data.user || '',
+            pass: data.pass || '',
+            fromEmail: data.fromEmail || '',
+            fromName: data.fromName || 'IAC Mobile System',
+          });
+        }
       }
     } catch (err: any) {
       console.error('Error fetching IAC mobile data:', err);
@@ -284,14 +288,29 @@ export default function IacMobile() {
     }
   }, [simUserId]);
 
-  // Real-time polling effect (5 second interval with proper cleanup)
+  // Real-time polling effect (15 second interval, active only when tab is visible)
   useEffect(() => {
     fetchData(true);
-    const interval = setInterval(() => {
-      fetchData(false);
-    }, 5000);
 
-    return () => clearInterval(interval);
+    const interval = setInterval(() => {
+      // Pause background requests if user is in another tab or minimized
+      if (document.visibilityState === 'visible') {
+        fetchData(false);
+      }
+    }, 15000);
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        fetchData(false);
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    return () => {
+      clearInterval(interval);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
   }, [fetchData]);
 
   const markAllNotificationsRead = () => {
@@ -1476,127 +1495,92 @@ export default function IacMobile() {
         <div className="space-y-6">
           <div className="bg-white p-4 rounded-2xl border border-zinc-200/80 shadow-sm flex flex-col sm:flex-row items-center justify-between gap-4">
             <div>
-              <h2 className="text-lg font-bold text-zinc-900">Interactive Mobile App Tester</h2>
-              <p className="text-xs text-zinc-500">
-                Simulate actions as a mobile app user to generate real live tickets, bookings, issues, and test the announcements slider.
+              <div className="flex items-center gap-2">
+                <span className="w-2.5 h-2.5 rounded-full bg-amber-400"></span>
+                <h2 className="text-lg font-bold text-zinc-900">IAC Mobile App (White &amp; Yellow Edition)</h2>
+              </div>
+              <p className="text-xs text-zinc-500 mt-0.5">
+                5-Screen Mobile Architecture: Home, Check-In, Bookings, Facility Help / Issues, and Member Profile.
               </p>
             </div>
-            <div className="flex flex-wrap items-center gap-2 bg-zinc-50 p-2 rounded-xl border border-zinc-200 text-xs">
-              <span className="text-zinc-500 font-medium">User Identity:</span>
-              <input
-                type="text"
-                value={simUserName}
-                onChange={(e) => setSimUserName(e.target.value)}
-                placeholder="Name"
-                className="w-28 p-1 rounded border border-zinc-300 font-medium bg-white"
-              />
-              <input
-                type="email"
-                value={simUserEmail}
-                onChange={(e) => setSimUserEmail(e.target.value)}
-                placeholder="Email"
-                className="w-44 p-1 rounded border border-zinc-300 font-medium bg-white"
-              />
+            <div className="flex flex-wrap items-center gap-2">
+              <div className="flex items-center gap-1.5 bg-zinc-50 px-2 py-1 rounded-xl border border-zinc-200 text-xs">
+                <span className="text-zinc-500 font-medium">Test User:</span>
+                <input
+                  type="text"
+                  value={simUserName}
+                  onChange={(e) => setSimUserName(e.target.value)}
+                  className="w-24 p-1 rounded border border-zinc-300 font-medium bg-white text-xs"
+                />
+                <input
+                  type="email"
+                  value={simUserEmail}
+                  onChange={(e) => setSimUserEmail(e.target.value)}
+                  className="w-36 p-1 rounded border border-zinc-300 font-medium bg-white text-xs"
+                />
+              </div>
+              <a
+                href="/iacmobile-app/"
+                target="_blank"
+                rel="noreferrer"
+                className="px-4 py-2 text-xs font-bold bg-amber-400 text-zinc-900 hover:bg-amber-500 rounded-xl transition-all shadow-sm flex items-center gap-1.5"
+              >
+                <span>Open Fullscreen Mobile Web</span>
+                <span className="text-xs">↗</span>
+              </a>
             </div>
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
             {/* Phone Device Frame */}
-            <div className="lg:col-span-5 flex justify-center">
-              <div className="w-full max-w-[360px] bg-zinc-950 rounded-[40px] p-3 shadow-2xl border-4 border-zinc-800">
+            <div className="lg:col-span-6 xl:col-span-5 flex justify-center">
+              <div className="w-full max-w-[390px] bg-zinc-950 rounded-[44px] p-3 shadow-2xl border-4 border-zinc-800">
                 {/* Notch */}
                 <div className="w-28 h-4 bg-zinc-900 mx-auto rounded-b-xl mb-2 flex items-center justify-center">
                   <div className="w-8 h-1 bg-zinc-700 rounded-full" />
                 </div>
 
-                {/* Mobile Screen */}
-                <div className="bg-zinc-50 rounded-[28px] overflow-hidden min-h-[520px] p-4 text-xs space-y-4 flex flex-col justify-between">
-                  {/* App Header */}
-                  <div className="flex items-center justify-between border-b border-zinc-200/80 pb-3">
-                    <div className="flex items-center gap-2">
-                      <div className="w-7 h-7 bg-sky-600 text-white rounded-lg flex items-center justify-center font-bold text-xs shadow-sm">
-                        IAC
-                      </div>
-                      <span className="font-bold text-zinc-900 text-sm">IAC Mobile</span>
-                    </div>
-                    <span className="text-[10px] font-semibold bg-sky-100 text-sky-800 px-2 py-0.5 rounded-full">
-                      v2.0
-                    </span>
-                  </div>
-
-                  {/* Active Announcements Slider View */}
-                  <div className="space-y-1.5">
-                    <div className="flex items-center justify-between">
-                      <span className="font-bold text-zinc-700 text-[11px]">Announcements</span>
-                      <span className="text-[10px] text-zinc-400">Live Feed</span>
-                    </div>
-
-                    {announcements.filter((a) => a.isActive).length === 0 ? (
-                      <div className="p-3 bg-white rounded-xl border border-zinc-200 text-zinc-400 text-center text-[11px]">
-                        No active announcements
-                      </div>
-                    ) : (
-                      <div className="bg-gradient-to-br from-zinc-900 to-zinc-800 text-white p-3 rounded-xl shadow-sm space-y-1">
-                        <span className="text-[9px] uppercase font-bold tracking-wider px-1.5 py-0.5 bg-sky-500 rounded text-white">
-                          {announcements.filter((a) => a.isActive)[0]?.category}
-                        </span>
-                        <h4 className="font-bold text-xs leading-snug">
-                          {announcements.filter((a) => a.isActive)[0]?.title}
-                        </h4>
-                        <p className="text-[10px] text-zinc-300 line-clamp-2">
-                          {announcements.filter((a) => a.isActive)[0]?.description}
-                        </p>
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Live Pass Section */}
-                  <div className="bg-white p-3 rounded-xl border border-zinc-200 shadow-xs space-y-2">
-                    <div className="flex items-center justify-between">
-                      <span className="font-bold text-zinc-800">Check-in Digital Pass</span>
-                      <button
-                        onClick={handleSimRequestCheckin}
-                        className="px-2.5 py-1 text-[10px] font-bold bg-sky-600 text-white rounded-lg hover:bg-sky-700"
-                      >
-                        Generate Pass
-                      </button>
-                    </div>
-
-                    {simTicket ? (
-                      <div className="bg-sky-50 p-2.5 rounded-lg border border-sky-200 text-center space-y-1">
-                        <span className="text-[10px] text-sky-700 block">TICKET CODE</span>
-                        <span className="text-base font-extrabold font-mono text-sky-900 tracking-wider">
-                          {simTicket.ticketCode}
-                        </span>
-                        <span className="text-[10px] block font-semibold text-emerald-700 capitalize">
-                          Status: {simTicket.status}
-                        </span>
-                      </div>
-                    ) : (
-                      <p className="text-[10px] text-zinc-400 text-center">Tap generate to create a pass code</p>
-                    )}
-                  </div>
-
-                  {/* Submit Booking Preview */}
-                  <div className="bg-white p-3 rounded-xl border border-zinc-200 shadow-xs space-y-2">
-                    <span className="font-bold text-zinc-800 block">Quick Room Reservation</span>
-                    <button
-                      onClick={handleSimSubmitBooking}
-                      className="w-full py-1.5 bg-zinc-900 text-white rounded-lg font-semibold text-[11px]"
-                    >
-                      Submit Booking for Room {simBookingRoom}
-                    </button>
-                  </div>
-
-                  <div className="text-center pt-2 text-[10px] text-zinc-400">
-                    Connected to Live Backend System
-                  </div>
+                {/* Live Mobile Screen running the white & yellow app */}
+                <div className="bg-white rounded-[28px] overflow-hidden shadow-inner flex flex-col">
+                  <iframe
+                    src="/iacmobile-app/"
+                    title="IAC Mobile Preview"
+                    className="w-full h-[640px] border-none bg-white"
+                  />
                 </div>
               </div>
             </div>
 
-            {/* Interactive Forms */}
-            <div className="lg:col-span-7 space-y-4">
+            {/* Interactive Forms & Test Triggers */}
+            <div className="lg:col-span-6 xl:col-span-7 space-y-4">
+              {/* Checkin Trigger Card */}
+              <div className="bg-white p-5 rounded-2xl border border-zinc-200 shadow-sm space-y-3">
+                <div className="flex items-center justify-between">
+                  <h3 className="font-bold text-sm text-zinc-900 flex items-center gap-2">
+                    <UserCheck className="w-4 h-4 text-amber-500" /> Fast Digital Pass Generator
+                  </h3>
+                  <button
+                    onClick={handleSimRequestCheckin}
+                    className="px-3 py-1.5 text-xs font-bold bg-amber-400 text-zinc-900 rounded-lg hover:bg-amber-500"
+                  >
+                    Generate Pass
+                  </button>
+                </div>
+                {simTicket ? (
+                  <div className="bg-amber-50 p-2.5 rounded-lg border border-amber-200 text-center space-y-1">
+                    <span className="text-[10px] text-amber-700 block font-bold">LATEST GENERATED TICKET</span>
+                    <span className="text-base font-extrabold font-mono text-zinc-900 tracking-wider">
+                      {simTicket.ticketCode}
+                    </span>
+                    <span className="text-[10px] block font-semibold text-emerald-700 capitalize">
+                      Status: {simTicket.status}
+                    </span>
+                  </div>
+                ) : (
+                  <p className="text-xs text-zinc-500">Generates a live check-in pass for {simUserName} into the real database queue.</p>
+                )}
+              </div>
+
               {/* Report Issue Form */}
               <div className="bg-white p-5 rounded-2xl border border-zinc-200 shadow-sm space-y-3">
                 <h3 className="font-bold text-sm text-zinc-900 flex items-center gap-2">
@@ -1629,7 +1613,7 @@ export default function IacMobile() {
                   </div>
                   <button
                     type="submit"
-                    className="px-4 py-2 bg-amber-500 text-white rounded-lg font-semibold hover:bg-amber-600"
+                    className="px-4 py-2 bg-amber-400 text-zinc-900 font-bold rounded-lg hover:bg-amber-500"
                   >
                     Post Issue
                   </button>
@@ -1639,46 +1623,54 @@ export default function IacMobile() {
               {/* Booking Request Form */}
               <div className="bg-white p-5 rounded-2xl border border-zinc-200 shadow-sm space-y-3">
                 <h3 className="font-bold text-sm text-zinc-900 flex items-center gap-2">
-                  <Calendar className="w-4 h-4 text-sky-600" /> Test Room Booking Submission
+                  <Calendar className="w-4 h-4 text-amber-500" /> Test Room Booking Submission
                 </h3>
-                <div className="grid grid-cols-2 gap-3 text-xs">
-                  <div>
-                    <label className="font-medium text-zinc-600 block mb-1">Room Number</label>
-                    <input
-                      type="text"
-                      value={simBookingRoom}
-                      onChange={(e) => setSimBookingRoom(e.target.value)}
-                      className="w-full p-2 rounded-lg border border-zinc-200 bg-zinc-50"
-                    />
+                <form onSubmit={handleSimSubmitBooking} className="space-y-3 text-xs">
+                  <div className="grid grid-cols-2 gap-3 text-xs">
+                    <div>
+                      <label className="font-medium text-zinc-600 block mb-1">Room Number</label>
+                      <input
+                        type="text"
+                        value={simBookingRoom}
+                        onChange={(e) => setSimBookingRoom(e.target.value)}
+                        className="w-full p-2 rounded-lg border border-zinc-200 bg-zinc-50"
+                      />
+                    </div>
+                    <div>
+                      <label className="font-medium text-zinc-600 block mb-1">Time Slot</label>
+                      <input
+                        type="text"
+                        value={simBookingSlot}
+                        onChange={(e) => setSimBookingSlot(e.target.value)}
+                        className="w-full p-2 rounded-lg border border-zinc-200 bg-zinc-50"
+                      />
+                    </div>
+                    <div>
+                      <label className="font-medium text-zinc-600 block mb-1">Program Name</label>
+                      <input
+                        type="text"
+                        value={simBookingProgram}
+                        onChange={(e) => setSimBookingProgram(e.target.value)}
+                        className="w-full p-2 rounded-lg border border-zinc-200 bg-zinc-50"
+                      />
+                    </div>
+                    <div>
+                      <label className="font-medium text-zinc-600 block mb-1">Date</label>
+                      <input
+                        type="date"
+                        value={simBookingDate}
+                        onChange={(e) => setSimBookingDate(e.target.value)}
+                        className="w-full p-2 rounded-lg border border-zinc-200 bg-zinc-50"
+                      />
+                    </div>
                   </div>
-                  <div>
-                    <label className="font-medium text-zinc-600 block mb-1">Time Slot</label>
-                    <input
-                      type="text"
-                      value={simBookingSlot}
-                      onChange={(e) => setSimBookingSlot(e.target.value)}
-                      className="w-full p-2 rounded-lg border border-zinc-200 bg-zinc-50"
-                    />
-                  </div>
-                  <div>
-                    <label className="font-medium text-zinc-600 block mb-1">Program Name</label>
-                    <input
-                      type="text"
-                      value={simBookingProgram}
-                      onChange={(e) => setSimBookingProgram(e.target.value)}
-                      className="w-full p-2 rounded-lg border border-zinc-200 bg-zinc-50"
-                    />
-                  </div>
-                  <div>
-                    <label className="font-medium text-zinc-600 block mb-1">Date</label>
-                    <input
-                      type="date"
-                      value={simBookingDate}
-                      onChange={(e) => setSimBookingDate(e.target.value)}
-                      className="w-full p-2 rounded-lg border border-zinc-200 bg-zinc-50"
-                    />
-                  </div>
-                </div>
+                  <button
+                    type="submit"
+                    className="px-4 py-2 bg-amber-400 text-zinc-900 font-bold rounded-lg hover:bg-amber-500"
+                  >
+                    Submit Booking Request
+                  </button>
+                </form>
               </div>
             </div>
           </div>

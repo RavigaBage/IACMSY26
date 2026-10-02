@@ -1,6 +1,7 @@
+const path = require('path');
+require('dotenv').config({ path: path.join(__dirname, '../.env') });
 require('dotenv').config();
 const express = require('express');
-const path = require('path');
 const fs = require('fs');
 const cookieParser = require('cookie-parser');
 const connectDB = require('./src/config/db');
@@ -26,12 +27,18 @@ socketService.emitToDevice("LAB-PC-01", "cmd:test", {
 });
 
 app.use(express.json());
-app.set('trust proxy', 1);
 
-const IpRateLimiter = rateLimit({
-   windowMs: 15 * 60 * 1000,
-    max: 500,
-    message: { message: 'Too many requests from this IP' },
+// Trust loopback (localhost/Nginx), link-local, and RFC1918 private Docker subnets (172.16-31.x.x, 10.x.x.x, 192.168.x.x)
+// This accurately extracts the real client IP from behind Nginx / Cloud Run / Docker while preventing client IP spoofing.
+app.set('trust proxy', process.env.TRUST_PROXY || 'loopback, linklocal, uniquelocal');
+
+// Global API rate limiter - protects against API flooding and scraping while accommodating normal dashboard usage
+const apiRateLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000,
+    max: 3000, // Generous ceiling for active dashboard usage and background polling (200 req/min)
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { status: 'error', message: 'API rate limit exceeded. Please slow down your requests.' },
     validate: { xForwardedForHeader: false },
 });
 
@@ -44,14 +51,26 @@ app.use(cors({
 }))
 const { commandService, dispatcher } = initServices(socketService);
 
-app.use('/api', IpRateLimiter);
+app.use('/api', apiRateLimiter);
 app.use('/api/auth', require('./src/routes/auth'));
 app.use('/api/iac-mobile', require('./src/routes/urls/iacMobile'));
 app.use('/api/summary', require('./src/routes/urls/summary'));
 app.use('/api/public', require('./src/routes/public'));
 app.use('/api', createProtectedRoutes(commandService));
+
+// Ensure unhandled /api routes always return JSON, never HTML
+app.use('/api', (req, res) => {
+    res.status(404).json({
+        status: 'error',
+        message: `API endpoint ${req.method} ${req.originalUrl} not found`,
+        error: `API endpoint ${req.method} ${req.originalUrl} not found`,
+    });
+});
+
 const { protect } = require('./src/middleware/auth');
 app.use('/uploads', protect, express.static(path.join(__dirname, 'uploads')));
+app.use('/src/assets', express.static(path.join(__dirname, '../src/assets')));
+app.use('/assets', express.static(path.join(__dirname, '../src/assets')));
 app.use('/IACMOBILE APP', express.static(path.join(__dirname, '../IACMOBILE APP')));
 app.use('/iacmobile-app', express.static(path.join(__dirname, '../IACMOBILE APP')));
 app.use('/attendanceForm', express.static(path.join(__dirname, '../attendanceForm')));
@@ -61,6 +80,19 @@ const indexPath = path.join(distPath, 'index.html');
 if (fs.existsSync(distPath)) {
     app.use(express.static(distPath));
 }
+
+// Any non-GET or API request that was not handled by previous routes should return JSON 404, never HTML
+app.use((req, res, next) => {
+    const isApi = req.path.startsWith('/api') || req.path.includes('/api/');
+    if (req.method !== 'GET' || isApi) {
+        return res.status(404).json({
+            status: 'error',
+            message: `Endpoint ${req.method} ${req.originalUrl} not found`,
+            error: `Endpoint ${req.method} ${req.originalUrl} not found`,
+        });
+    }
+    next();
+});
 
 app.get(/^(?!\/api).*/, (req, res) => {
     if (fs.existsSync(indexPath)) {
@@ -106,19 +138,31 @@ app.use((err, req, res, next) => {
     next(err);
 });
 
-app.use((err,req,res,next)=>{
-    console.error(err.stack);
+app.use((err, req, res, next) => {
+    if (res.headersSent) {
+        return next(err);
+    }
+    // Handle malformed JSON body from body-parser
+    if (err instanceof SyntaxError && err.status === 400 && 'body' in err) {
+        return res.status(400).json({
+            status: 'error',
+            message: 'Invalid JSON payload sent to server',
+            error: 'Invalid JSON payload sent to server',
+        });
+    }
+    console.error(err.stack || err.message);
     const isClientError = err.name === 'ValidationError' || err.name === 'CastError' || err.statusCode === 400 || (err.message && err.message.toLowerCase().includes('validation'));
     const statusCode = err.statusCode || (isClientError ? 400 : 500);
     res.status(statusCode).json({
         status: 'error',
         message: err.message || (statusCode >= 500 ? 'Internal server error' : 'Request failed'),
+        error: err.message || (statusCode >= 500 ? 'Internal server error' : 'Request failed'),
     });
 });
 
 
 
-const PORT = process.env.PORT || process.env.BACKEND_PORT || 5000;
+const PORT = (process.env.PORT && process.env.PORT !== '8080') ? process.env.PORT : (process.env.BACKEND_PORT || 3000);
 
 
 io.on("connection", (socket) => {

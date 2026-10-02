@@ -12,7 +12,15 @@ const loginLocks = new Map();
 const loginIpLimiter = rateLimit({
     windowMs: 15 * 60 * 1000,
     max: 50,
-    message: { message: 'Too many requests from this IP' },
+    skipSuccessfulRequests: true, // Legitimate logins do not consume brute-force quota
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { status: 'error', message: 'Too many failed login attempts from this IP. Please try again after 15 minutes.' },
+    validate: { xForwardedForHeader: false },
+    handler: (req, res, next, options) => {
+        console.warn(`[RATE LIMIT EXCEEDED - LOGIN] ${new Date().toISOString()} ${req.method} ${req.originalUrl || req.url} IP=${req.ip}`);
+        res.status(options.statusCode).json(options.message);
+    }
 });
 
 const cookieOptions = {
@@ -82,19 +90,20 @@ function requireAuth(req, res, next) {
 }
 
 router.post('/login', loginIpLimiter,
-    [
-        body('identifier').trim().notEmpty().withMessage('Email or identifier is required'),
-        body('password').notEmpty().withMessage('Password is required'),
-    ],
     async (req, res, next) => {
         try {
-            const error = validationResult(req);
-            if (!error.isEmpty()) {
-                return res.status(400).json({ message: error.array()[0].msg, error: error.array() });
+            const rawId = req.body.identifier || req.body.email || req.body.username || '';
+            const password = req.body.password || '';
+
+            if (!rawId.trim()) {
+                return res.status(400).json({ status: 'error', message: 'Email or identifier is required' });
+            }
+            if (!password) {
+                return res.status(400).json({ status: 'error', message: 'Password is required' });
             }
 
-            const { identifier, password } = req.body;
-            const Email = identifier.trim().toLowerCase();
+            const identifier = rawId.trim();
+            const Email = identifier.toLowerCase();
             const lockKey = `login:lock:${Email}`;
             const attemptKey = `login:attempts:${Email}`;
 
@@ -108,6 +117,7 @@ router.post('/login', loginIpLimiter,
             const lockExpiry = loginLocks.get(lockKey);
             if (lockExpiry && Date.now() < lockExpiry) {
                 return res.status(403).json({
+                    status: 'error',
                     message: 'Account temporarily locked. Try again later.',
                 });
             } else if (lockExpiry) {
@@ -119,7 +129,7 @@ router.post('/login', loginIpLimiter,
             const existing = await User.findOne({
                 $or: [
                     { email: Email },
-                    { name: new RegExp(`^${identifier.trim()}$`, 'i') }
+                    { name: new RegExp(`^${identifier}$`, 'i') }
                 ]
             }).select("+password");
 
@@ -130,7 +140,7 @@ router.post('/login', loginIpLimiter,
                 if (attempts >= 5) {
                     loginLocks.set(lockKey, Date.now() + 15 * 60 * 1000);
                 }
-                return res.status(401).json({ message: 'Invalid Email or password' });
+                return res.status(401).json({ status: 'error', message: 'Invalid email or password' });
             }
 
             loginAttempts.delete(attemptKey);

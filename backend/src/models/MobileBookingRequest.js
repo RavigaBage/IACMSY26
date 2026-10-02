@@ -14,10 +14,26 @@ const mobileBookingRequestSchema = new mongoose.Schema(
     description: { type: String, default: '' },
     status: {
       type: String,
-      enum: ['pending', 'confirmed', 'rejected'],
+      enum: ['pending', 'confirmed', 'rejected', 'cancelled', 'completed'],
       default: 'pending',
     },
     confirmedBookingId: { type: mongoose.Schema.Types.ObjectId, ref: 'booking', default: null },
+    eventDetailsSubmitted: { type: Boolean, default: false },
+    eventDetailsSubmittedAt: { type: Date, default: null },
+    eventDetails: {
+      organizer: { type: String, default: '' },
+      presenter: { type: String, default: '' },
+      programName: { type: String, default: '' },
+      eventType: { type: String, default: 'meetings' },
+      category: { type: String, default: 'others' },
+      participants: { type: Number, default: 1 },
+      beneficiaries: { type: String, default: 'others' },
+      description: { type: String, default: '' },
+      startDate: { type: Date, default: null },
+      endDate: { type: Date, default: null },
+      roomType: { type: String, default: '' },
+      paymentStatus: { type: String, default: 'Unpaid' },
+    },
   },
   { timestamps: true }
 );
