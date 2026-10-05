@@ -1,0 +1,21 @@
+{
+  "name": "iac-pc-agent",
+  "version": "1.0.0",
+  "description": "IACMSY26 Laboratory PC Remote Management Client Agent",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "test": "node index.js --test"
+  },
+  "keywords": [
+    "remote-management",
+    "lab-agent",
+    "iacmsy26"
+  ],
+  "author": "IACMSY26 Engineering",
+  "license": "ISC",
+  "type": "commonjs",
+  "dependencies": {
+    "socket.io-client": "^4.8.1"
+  }
+}

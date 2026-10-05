@@ -17,8 +17,11 @@ export default function ProtectedRoute({ children }: ProtectedRouteProps) {
 
   if (isLoading) {
     return (
-      <div className="flex h-screen w-full items-center justify-center">
-        <div className="h-8 w-8 animate-spin rounded-full border-4 border-gray-300 border-t-blue-600" />
+      <div className="flex h-screen w-full items-center justify-center bg-zinc-50">
+        <div className="flex flex-col items-center gap-3">
+          <div className="h-8 w-8 animate-spin rounded-full border-3 border-zinc-200 border-t-amber-500" />
+          <p className="text-xs font-semibold text-zinc-500 tracking-wide">Verifying session...</p>
+        </div>
       </div>
     );
   }

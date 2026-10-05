@@ -28,7 +28,7 @@ class CommandRepository {
             ? deviceIds
             : [deviceIds];
             const values = safeDeviceIds.map(deviceId => ({
-                commandId,
+                commandId: commandId.toString(),
                 deviceId,
                 status: "PENDING"
             }));
@@ -44,12 +44,17 @@ class CommandRepository {
 
     }
 
-    async getRoomId(target_id){
-        const filter = await this.db.devices.findOne({
-            _id: target_id
-        });
-        console.log('target_ids',target_id,'filter',filter);
-        return filter;
+    async getRoomId(target_id) {
+        try {
+            const query = mongoose.Types.ObjectId.isValid(target_id)
+                ? { $or: [{ _id: target_id }, { deviceId: target_id }] }
+                : { deviceId: target_id };
+            const filter = await this.db.devices.findOne(query);
+            return filter;
+        } catch (error) {
+            console.error("Error in getRoomId:", error);
+            return null;
+        }
     }
 
 
@@ -63,10 +68,13 @@ class CommandRepository {
   
     async getTargets(commandId) {
         try{
-            const filter = await this.db.deviceCommandTarget.find({commandId:commandId});
+            const cmdIdStr = (commandId || '').toString();
+            const filter = await this.db.deviceCommandTarget.find({
+                $or: [{ commandId: cmdIdStr }, { commandId: commandId }]
+            });
             return filter;
         }catch(error){
-            console.error("Error creating command targets:", error);
+            console.error("Error fetching command targets:", error);
             throw error;
         }
 
@@ -249,17 +257,21 @@ class CommandRepository {
 
 
     async markOffline(targetId, errorMessage) {
-
-        return await this.db.deviceCommand.findByIdAndUpdate(
-            targetId,
-            {
-                $set: {
-                    status: "OFFLINE",
-                    errorMessage
-                }
-            },
-            { new: true }
-        );
+        try {
+            return await this.db.deviceCommandTarget.findByIdAndUpdate(
+                targetId,
+                {
+                    $set: {
+                        status: "FAILED",
+                        errorMessage: errorMessage || "Device offline (skipped)"
+                    }
+                },
+                { new: true }
+            );
+        } catch (error) {
+            console.error("Error marking target offline:", error);
+            throw error;
+        }
     }
 
 
@@ -272,6 +284,75 @@ class CommandRepository {
             resultJson: JSON.stringify(result.data || {}),
             exitCode: result.exitCode || 0
         });
+    }
+
+    async markTargetStatusByCommand(commandId, deviceId, status_, extraFields = {}) {
+        try {
+            const device = await this.getDevice(deviceId);
+            const cmdIdStr = (commandId || '').toString();
+            const targetDevices = [];
+            if (device) {
+                targetDevices.push(device._id.toString());
+                if (device.deviceId) targetDevices.push(device.deviceId);
+            }
+            if (deviceId) {
+                targetDevices.push(deviceId.toString());
+            }
+
+            const query = {
+                $and: [
+                    { $or: [{ commandId: cmdIdStr }, { commandId }] },
+                    { $or: targetDevices.map(d => ({ deviceId: d })) }
+                ]
+            };
+
+            const updateDoc = { status: status_, ...extraFields };
+            if (status_ === "ACKNOWLEDGED" || status_ === "DELIVERED") {
+                updateDoc.acknowledgedAt = new Date();
+            } else if (status_ === "RUNNING") {
+                updateDoc.startedAt = new Date();
+            } else if (status_ === "COMPLETED" || status_ === "FAILED" || status_ === "TIMED_OUT") {
+                updateDoc.completedAt = new Date();
+            }
+
+            const updated = await this.db.deviceCommandTarget.findOneAndUpdate(
+                query,
+                { $set: updateDoc },
+                { new: true }
+            );
+
+            // If result output was provided (stdout, error), save to deviceCommandResult
+            if (updated && (extraFields.stdout || extraFields.error)) {
+                try {
+                    await this.saveResult(updated._id, {
+                        stdout: extraFields.stdout,
+                        stderr: extraFields.error,
+                        exitCode: status_ === "COMPLETED" ? 0 : 1,
+                        data: extraFields
+                    });
+                } catch (resErr) {
+                    console.warn("Could not save command result record:", resErr.message);
+                }
+            }
+
+            // Sync overall command status
+            if (status_ === "COMPLETED" || status_ === "FAILED") {
+                const remaining = await this.db.deviceCommandTarget.find({
+                    $or: [{ commandId: cmdIdStr }, { commandId }],
+                    status: { $in: ["PENDING", "SENT", "QUEUED", "DELIVERED", "ACKNOWLEDGED", "RUNNING"] }
+                });
+                if (remaining.length === 0) {
+                    await this.updateStatus(commandId, status_);
+                }
+            } else if (status_ === "RUNNING" || status_ === "ACKNOWLEDGED" || status_ === "DELIVERED") {
+                await this.updateStatus(commandId, status_);
+            }
+
+            return updated;
+        } catch (error) {
+            console.error("Error in markTargetStatusByCommand:", error);
+            return null;
+        }
     }
 }
 

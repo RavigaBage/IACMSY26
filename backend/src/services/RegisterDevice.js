@@ -53,30 +53,62 @@ const registerAgentService = async (data) => {
 
         isDeleted: false,
       };
-      const FindDevice = await DevicesData.findOne(
-        {
-          deviceId: normalized.deviceId,
-          deviceName:normalized.deviceName,
-          operatingSystem:normalized.operatingSystem,
-        }
-      );
-      if(FindDevice){
-        return({
-          status:"error",
-          message:"Device Already exist"
-        })
+      const findQuery = normalized.deviceId && normalized.deviceId !== "test_data"
+        ? { $or: [{ deviceId: normalized.deviceId }, { hostname: normalized.hostname }] }
+        : { hostname: normalized.hostname };
+
+      let deviceRecord = await DevicesData.findOne(findQuery);
+
+      if (deviceRecord) {
+        deviceRecord.status = {
+          ...deviceRecord.status,
+          remoteAgent: "active",
+          networkValidation: "validated",
+          authentication: "verified",
+        };
+        deviceRecord.security = {
+          ...deviceRecord.security,
+          lastSeen: new Date(),
+        };
+        if (normalized.ipAddress) deviceRecord.ipAddress = normalized.ipAddress;
+        if (normalized.macAddress) deviceRecord.macAddress = normalized.macAddress;
+        if (normalized.operatingSystem) deviceRecord.operatingSystem = normalized.operatingSystem;
+        if (normalized.agentVersion) deviceRecord.agentVersion = normalized.agentVersion;
+        if (normalized.permissions) deviceRecord.permissions = { ...deviceRecord.permissions, ...normalized.permissions };
+        if (normalized.deviceId && !deviceRecord.deviceId) deviceRecord.deviceId = normalized.deviceId;
+        deviceRecord.isDeleted = false;
+
+        await deviceRecord.save();
+
+        return {
+          status: "success",
+          data_: deviceRecord,
+        };
       }
+
+      normalized.status = {
+        networkValidation: "validated",
+        remoteAgent: "active",
+        authentication: "verified",
+      };
+      normalized.security = {
+        lastSeen: new Date(),
+        ipHistory: normalized.ipAddress ? [normalized.ipAddress] : [],
+        flagged: false,
+        riskLevel: "low",
+      };
+
       const data_ = await DevicesData.create(normalized);
 
-      return({
+      return {
         status: "success",
         data_,
-      });
+      };
     } catch (err) {
-      return({
+      return {
         status: "error",
         message: err.message,
-      });
+      };
     }
 
     return { success: true };

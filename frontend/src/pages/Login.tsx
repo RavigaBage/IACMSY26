@@ -1,20 +1,29 @@
 'use client';
 
 import { useEffect, useState, type FormEvent } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { Mail, Lock, Eye, EyeOff } from 'lucide-react';
+import { useLocation, useNavigate } from 'react-router-dom';
+import { Mail, Lock, Eye, EyeOff, ShieldCheck } from 'lucide-react';
 import { api, setAccessToken } from '../lib/api';
 import { useAuth } from '../contexts/AuthContext';
 const HERO_PATTERN = `data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140' viewBox='0 0 140 140'%3E%3Cg fill='none' stroke='%23FFFFFF' stroke-width='1.5' opacity='0.5'%3E%3Ccircle cx='70' cy='70' r='46'/%3E%3Ccircle cx='70' cy='70' r='30'/%3E%3Cpath d='M70 24a46 46 0 0 1 46 46'/%3E%3Cpath d='M24 70a46 46 0 0 1 46-46'/%3E%3Ccircle cx='0' cy='0' r='18'/%3E%3Ccircle cx='140' cy='0' r='18'/%3E%3Ccircle cx='0' cy='140' r='18'/%3E%3Ccircle cx='140' cy='140' r='18'/%3E%3C/g%3E%3C/svg%3E`;
 
 export default function LoginPage() {
   const navigate = useNavigate();
+  const location = useLocation();
+  const from = (location.state as any)?.from?.pathname || '/';
+
   const { isAuthenticated, isLoading, checkAuth } = useAuth();
   const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState('');
+
+  const fillDemoAdmin = () => {
+    setIdentifier('admin@iac.com');
+    setPassword('Admin@1234');
+    setError('');
+  };
 
   const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -37,7 +46,7 @@ export default function LoginPage() {
       if (res?.status === 'success' && res?.access) {
         setAccessToken(res.access);
         await checkAuth();
-        navigate('/', { replace: true });
+        navigate(from, { replace: true });
         return;
       }
       if (res?.status !== 'success') {
@@ -59,9 +68,9 @@ export default function LoginPage() {
 
   useEffect(() => {
     if (!isLoading && isAuthenticated) {
-      navigate('/', { replace: true });
+      navigate(from, { replace: true });
     }
-  }, [isAuthenticated, isLoading, navigate]);
+  }, [isAuthenticated, isLoading, navigate, from]);
 
   return (
     <div className="min-h-screen w-full flex flex-col md:flex-row bg-white">
@@ -170,12 +179,29 @@ export default function LoginPage() {
             <button
               type="submit"
               disabled={isSubmitting}
-              className={`w-full rounded-lg bg-emerald-600 hover:bg-emerald-700 disabled:opacity-60 disabled:cursor-not-allowed text-white font-semibold py-2.5 text-sm transition-colors ${isSubmitting ? 'animate-pulse' : ' '
-                }`}
+              className={`w-full rounded-lg bg-emerald-600 hover:bg-emerald-700 disabled:opacity-60 disabled:cursor-not-allowed text-white font-semibold py-2.5 text-sm transition-colors cursor-pointer ${isSubmitting ? 'animate-pulse' : ''}`}
             >
               {isSubmitting ? 'Signing in...' : 'Sign In'}
             </button>
           </form>
+
+          {/* Quick Demo Access */}
+          <div className="mt-4 p-3 bg-amber-50/80 border border-amber-200/90 rounded-xl flex items-center justify-between text-xs">
+            <div>
+              <p className="font-bold text-amber-900 flex items-center gap-1">
+                <ShieldCheck className="w-3.5 h-3.5 text-amber-600" />
+                Demo Administrator
+              </p>
+              <p className="text-amber-700 text-[11px]">admin@iac.com • Admin@1234</p>
+            </div>
+            <button
+              type="button"
+              onClick={fillDemoAdmin}
+              className="px-2.5 py-1.5 font-bold text-amber-900 bg-amber-200 hover:bg-amber-300 rounded-lg transition-colors cursor-pointer text-xs"
+            >
+              Auto-fill ⚡
+            </button>
+          </div>
 
           <div className="flex items-center gap-3 my-6">
             <div className="h-px flex-1 bg-stone-200" />

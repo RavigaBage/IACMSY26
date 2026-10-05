@@ -191,11 +191,23 @@ router.post('/refresh', async (req, res) => {
 
 // POST /api/auth/logout
 router.post('/logout', async (req, res) => {
-    const token = req.cookies.refreshToken;
+    let userId = null;
+    const token = req.cookies?.refreshToken;
     if (token) {
         try {
             const decoded = verifyRefreshToken(token);
-            const user = await User.findById(decoded.id);
+            userId = decoded?.id;
+        } catch (err) {}
+    }
+    if (!userId && req.headers.authorization && req.headers.authorization.startsWith('Bearer ')) {
+        try {
+            const decoded = verifyAccessToken(req.headers.authorization.split(' ')[1]);
+            userId = decoded?.id;
+        } catch (err) {}
+    }
+    if (userId) {
+        try {
+            const user = await User.findById(userId);
             if (user) {
                 user.refreshToken = undefined;
                 await user.save({ validateBeforeSave: false });
@@ -205,7 +217,7 @@ router.post('/logout', async (req, res) => {
 
     res.clearCookie('refreshToken', cookieOptions);
     res.clearCookie('accessToken', cookieOptions);
-    res.json({ message: 'Logged out successfully' });
+    res.json({ status: 'success', message: 'Logged out successfully' });
 });
 
 module.exports = router;

@@ -96,6 +96,10 @@ export default function Devices() {
 
   useEffect(() => {
     fetchDevices();
+    const interval = setInterval(() => {
+      fetchDevices();
+    }, 10000);
+    return () => clearInterval(interval);
   }, [fetchDevices]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {

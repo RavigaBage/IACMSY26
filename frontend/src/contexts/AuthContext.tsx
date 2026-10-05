@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useState, ReactNode } from "react";
-import { api, refreshAccessToken } from "../lib/api";
+import { api, refreshAccessToken, setAccessToken } from "../lib/api";
 
 interface User {
   id: string;
@@ -25,36 +25,56 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   /**
    * Tries to confirm the current session:
-   * 1. GET /auth/verify  -> uses the access token cookie
-   * 2. If that 401s, POST /auth/refresh -> uses the refresh token cookie
-   *    to mint a new access token, then verify is retried once.
-   * 3. If both fail, the user is considered logged out.
+   * 1. GET /api/auth/verify -> uses stored token or cookie
+   * 2. If that fails, POST /api/auth/refresh -> mints a new access token
+   * 3. If refresh succeeds, re-verifies.
+   * 4. If any step fails, clears tokens, sets user to null, and marks unauthenticated.
    */
   const checkAuth = async (): Promise<boolean> => {
     try {
-        const data = await api.get("api/auth/verify");
+      const data = await api.get("/api/auth/verify");
+      if (data?.user) {
         setUser(data.user);
         return true;
-    }
-    catch {
-        const refreshed = await refreshAccessToken();
+      }
+      throw new Error("Invalid verify payload");
+    } catch {
+      const refreshed = await refreshAccessToken();
 
-        if (!refreshed) {
-            setUser(null);
-            return false;
+      if (!refreshed) {
+        setUser(null);
+        setAccessToken(null);
+        return false;
+      }
+
+      try {
+        const data = await api.get("/api/auth/verify");
+        if (data?.user) {
+          setUser(data.user);
+          return true;
         }
-
-        const data = await api.get("api/auth/verify");
-        setUser(data.user);
-        return true;
+        setUser(null);
+        setAccessToken(null);
+        return false;
+      } catch {
+        setUser(null);
+        setAccessToken(null);
+        return false;
+      }
     }
   };
 
   const logout = async () => {
     try {
-    //   await api.post("/auth/logout");
+      await api.post("/api/auth/logout", {});
+    } catch (e) {
+      console.warn("Logout request failed:", e);
     } finally {
       setUser(null);
+      setAccessToken(null);
+      if (typeof window !== "undefined") {
+        window.location.href = "/login";
+      }
     }
   };
 

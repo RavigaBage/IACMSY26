@@ -20,11 +20,23 @@ export class ApiError extends Error {
 }
 
 let refreshPromise: Promise<boolean> | null = null;
-let accessToken: string | null = null;
+let accessToken: string | null = typeof window !== 'undefined' ? localStorage.getItem('iac_admin_access_token') : null;
+
+export function getAccessToken(): string | null {
+  return accessToken;
+}
 
 export function setAccessToken(token: string | null) {
   accessToken = token;
+  if (typeof window !== 'undefined') {
+    if (token) {
+      localStorage.setItem('iac_admin_access_token', token);
+    } else {
+      localStorage.removeItem('iac_admin_access_token');
+    }
+  }
 }
+
 export async function refreshAccessToken(): Promise<boolean> {
   if (!refreshPromise) {
     refreshPromise = fetch(getUrl('/api/auth/refresh'), {
@@ -35,15 +47,23 @@ export async function refreshAccessToken(): Promise<boolean> {
       },
     })
       .then(async (res) => {
-        if (!res.ok) return false;
+        if (!res.ok) {
+          setAccessToken(null);
+          return false;
+        }
 
         const data = await res.json();
-
-        setAccessToken(data.access);
-
-        return true;
+        if (data?.access) {
+          setAccessToken(data.access);
+          return true;
+        }
+        setAccessToken(null);
+        return false;
       })
-      .catch(() => false)
+      .catch(() => {
+        setAccessToken(null);
+        return false;
+      })
       .finally(() => {
         refreshPromise = null;
       });
@@ -52,8 +72,9 @@ export async function refreshAccessToken(): Promise<boolean> {
   return refreshPromise;
 }
 
-function redirectToLogin() {
-  if (window.location.pathname !== "/login") {
+export function redirectToLogin() {
+  setAccessToken(null);
+  if (typeof window !== "undefined" && window.location.pathname !== "/login") {
     window.location.href = "/login";
   }
 }

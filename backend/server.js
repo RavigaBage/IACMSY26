@@ -168,34 +168,65 @@ const PORT = (process.env.PORT && process.env.PORT !== '8080') ? process.env.POR
 io.on("connection", (socket) => {
     console.log("🟢 Agent connected:", socket.id);
 
-
-
-    socket.on("disconnect", () => {
-        console.log("🔴 Agent disconnected:", socket.id);
+    socket.on("disconnect", async () => {
+        console.log("🔴 Agent disconnected:", socket.id, socket.deviceId);
+        if (socket.deviceId) {
+            socketService.unregisterDevice(socket.deviceId);
+        }
+        if (socket.deviceMongoId) {
+            socketService.unregisterDevice(socket.deviceMongoId);
+        }
+        if (socket.deviceId || socket.deviceMongoId) {
+            try {
+                const { devices } = require('./src/models');
+                const mongoose = require('mongoose');
+                const disQuery = [];
+                if (socket.deviceId) disQuery.push({ deviceId: socket.deviceId });
+                if (socket.deviceMongoId && mongoose.Types.ObjectId.isValid(socket.deviceMongoId)) {
+                    disQuery.push({ _id: socket.deviceMongoId });
+                }
+                if (disQuery.length > 0) {
+                    await devices.findOneAndUpdate(
+                        { $or: disQuery },
+                        { $set: { "status.remoteAgent": "offline", "security.lastSeen": new Date() } }
+                    );
+                }
+            } catch (err) {
+                console.error("Error setting device offline on disconnect:", err.message);
+            }
+        }
     });
 
     socket.on("agent:register", async (data) => {
         socket.deviceId = data.deviceId;
         socket.join(`device:${data.deviceId}`);
-        await registerAgentService(data);
+        const regResult = await registerAgentService(data);
+        if (regResult?.data_?._id) {
+            socket.deviceMongoId = regResult.data_._id.toString();
+            socket.join(`device:${socket.deviceMongoId}`);
+            socketService.registerDevice(socket.deviceMongoId, socket);
+        }
         socketService.registerDevice(data.deviceId, socket);
 
         if (dispatcher) {
             dispatcher.registerDeviceListeners(socket);
         }
 
-        console.log('devices registered');
+        socket.emit("agent:registered", {
+            status: "success",
+            deviceId: data.deviceId,
+            id: socket.deviceMongoId
+        });
+        console.log(`[Socket] Device registered: ${data.deviceId} (${socket.deviceMongoId || "new"})`);
     });
 
     socket.on("cmd:test", (payload) => {
-    console.log("📨 Test command received:", payload);
-
-    socket.emit("cmd:test:response", {
-      message: "Agent received command successfully 🎯",
-      time: Date.now()
+        console.log("📨 Test command received:", payload);
+        socket.emit("cmd:test:response", {
+            message: "Agent received command successfully 🎯",
+            time: Date.now()
+        });
     });
-  });
-
 });
 
 app.get("/test", (req, res) => {

@@ -1,0 +1,25 @@
+{
+  "serverUrl": "http://localhost:3000",
+  "deviceId": "auto",
+  "deviceName": "auto",
+  "agentVersion": "1.0.0",
+  "department": "Engineering Lab",
+  "location": "Training Lab",
+  "assignedUser": "auto",
+  "serialNumber": "auto",
+  "remotePort": 8080,
+  "authenticationMode": "token",
+  "authToken": "iac_agent_token_dev",
+  "encryptionEnabled": true,
+  "reconnectInterval": 3000,
+  "heartbeatInterval": 30000,
+  "simulateExecution": false,
+  "permissions": {
+    "allowRemoteShutdown": true,
+    "allowRemoteRestart": true,
+    "allowRemoteLock": true,
+    "allowRemoteMonitoring": true,
+    "allowRemoteUpdate": true,
+    "allowFileTransfer": false
+  }
+}
