@@ -57,8 +57,6 @@ COPY --chown=appuser:appgroup \
 
 # Copy static assets with correct ownership
 COPY --chown=appuser:appgroup attendanceForm/ ./attendanceForm/
-COPY --chown=appuser:appgroup ["IACMOBILE APP/", "./IACMOBILE APP/"]
-
 # Make uploads directory available to the application
 RUN mkdir -p /app/backend/uploads && \
     chown appuser:appgroup /app/backend/uploads
