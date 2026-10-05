@@ -188,4 +188,9 @@ EventProgramSchema.index({
 });
 
 
-module.exports =  mongoose.models.EventProgram || mongoose.model('EventProgram', EventProgramSchema);
+const EventProgram = mongoose.models.EventProgram || mongoose.model('EventProgram', EventProgramSchema);
+if (!mongoose.models.booking) {
+  mongoose.model('booking', EventProgramSchema);
+}
+
+module.exports = EventProgram;

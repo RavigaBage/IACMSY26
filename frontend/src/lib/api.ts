@@ -152,12 +152,16 @@ async function request(
   } else {
     try {
       const text = await res.text();
-      if (text.trim().startsWith('{') || text.trim().startsWith('[')) {
-        result = JSON.parse(text);
+      const trimmed = text.trim();
+      if (trimmed.startsWith('{') || trimmed.startsWith('[')) {
+        result = JSON.parse(trimmed);
+      } else if (trimmed.startsWith('<') || contentType.includes('text/html')) {
+        throw new ApiError("Server returned HTML instead of data. Please verify your connection or try again.", res.status);
       } else {
-        result = { status: 'success', data: text };
+        result = { status: 'success', data: trimmed };
       }
-    } catch {
+    } catch (parseErr: any) {
+      if (parseErr instanceof ApiError) throw parseErr;
       result = { status: 'success' };
     }
   }
@@ -170,12 +174,14 @@ async function request(
 }
 
 export const api = {
-  get: (endpoint: string) => request(endpoint),
-  post: (endpoint: string, body: any) =>
-    request(endpoint, { method: "POST", body: JSON.stringify(body) }),
-  patch: (endpoint: string, body: any) =>
-    request(endpoint, { method: "PATCH", body: JSON.stringify(body) }),
-  delete: (endpoint: string) => request(endpoint, { method: "DELETE" }),
+  get: (endpoint: string, options?: RequestInit) => request(endpoint, { ...options, method: 'GET' }),
+  post: (endpoint: string, body?: any, options?: RequestInit) =>
+    request(endpoint, { ...options, method: "POST", body: body !== undefined ? JSON.stringify(body) : undefined }),
+  put: (endpoint: string, body?: any, options?: RequestInit) =>
+    request(endpoint, { ...options, method: "PUT", body: body !== undefined ? JSON.stringify(body) : undefined }),
+  patch: (endpoint: string, body?: any, options?: RequestInit) =>
+    request(endpoint, { ...options, method: "PATCH", body: body !== undefined ? JSON.stringify(body) : undefined }),
+  delete: (endpoint: string, options?: RequestInit) => request(endpoint, { ...options, method: "DELETE" }),
   download: async (endpoint: string, fallbackFilename = "IAC_Report.xlsx") => {
     const res = await fetch(getUrl(endpoint), {
       credentials: "include",

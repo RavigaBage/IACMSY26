@@ -21,12 +21,23 @@ const io = new Server(server, {
         origin: "*"
     }
 });
+app.set('io', io);
 const socketService = new SocketService(io);
 socketService.emitToDevice("LAB-PC-01", "cmd:test", {
     message: "Hello from server 🎯"
 });
 
 app.use(express.json());
+
+// Security headers
+app.use((req, res, next) => {
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    res.setHeader('Referrer-Policy', 'no-referrer');
+    res.setHeader('X-Frame-Options', 'SAMEORIGIN');
+    res.setHeader('X-XSS-Protection', '1; mode=block');
+    res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
+    next();
+});
 
 // Trust loopback (localhost/Nginx), link-local, and RFC1918 private Docker subnets (172.16-31.x.x, 10.x.x.x, 192.168.x.x)
 // This accurately extracts the real client IP from behind Nginx / Cloud Run / Docker while preventing client IP spoofing.
@@ -71,8 +82,11 @@ const { protect } = require('./src/middleware/auth');
 app.use('/uploads', protect, express.static(path.join(__dirname, 'uploads')));
 app.use('/src/assets', express.static(path.join(__dirname, '../src/assets')));
 app.use('/assets', express.static(path.join(__dirname, '../src/assets')));
+const iacMobileAppDir = fs.existsSync(path.join(__dirname, '../iacmobile-app'))
+    ? path.join(__dirname, '../iacmobile-app')
+    : path.join(__dirname, '../IACMOBILE APP');
 app.use('/IACMOBILE APP', express.static(path.join(__dirname, '../IACMOBILE APP')));
-app.use('/iacmobile-app', express.static(path.join(__dirname, '../IACMOBILE APP')));
+app.use('/iacmobile-app', express.static(iacMobileAppDir));
 app.use('/attendanceForm', express.static(path.join(__dirname, '../attendanceForm')));
 const distPath = path.join(__dirname, '../frontend/dist');
 const indexPath = path.join(distPath, 'index.html');

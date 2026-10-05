@@ -1,5 +1,6 @@
 const express = require('express');
 const router = express.Router();
+const mongoose = require('mongoose');
 const CheckinTicket = require('../../models/CheckinTicket');
 const MobileUserProfile = require('../../models/MobileUserProfile');
 const Issue = require('../../models/Issue');
@@ -9,8 +10,33 @@ const MobileBookingRequest = require('../../models/MobileBookingRequest');
 const SmtpConfig = require('../../models/SmtpConfig');
 const InternetLounge = require('../../models/InternetLounge');
 const Booking = require('../../models/booking');
+const User = require('../../models/User');
 const { sendEmail, verifyAndSendTestEmail } = require('../../services/mailerService');
 const { signAccessToken, signRefreshToken, verifyAccessToken, verifyRefreshToken } = require('../../utils/jwt');
+
+// Helper to resolve multiple representation of mobile user IDs (MongoDB ObjectId vs mob_user_xxx)
+async function resolveMobileUserIds(idOrCode) {
+  if (!idOrCode) return [];
+  const ids = [String(idOrCode)];
+  try {
+    const isObjId = mongoose.isValidObjectId(idOrCode);
+    const profile = await MobileUserProfile.findOne({
+      $or: [
+        { mobileUserId: idOrCode },
+        ...(isObjId ? [{ _id: idOrCode }] : [])
+      ]
+    });
+    if (profile) {
+      if (profile.mobileUserId && !ids.includes(profile.mobileUserId)) {
+        ids.push(profile.mobileUserId);
+      }
+      if (profile._id && !ids.includes(profile._id.toString())) {
+        ids.push(profile._id.toString());
+      }
+    }
+  } catch (e) {}
+  return ids;
+}
 
 // Middleware to verify mobile JWT token
 const verifyMobileToken = async (req, res, next) => {
@@ -32,6 +58,53 @@ const verifyMobileToken = async (req, res, next) => {
       return res.status(401).json({ error: 'Token expired', code: 'TOKEN_EXPIRED' });
     }
     return res.status(401).json({ error: 'Invalid token' });
+  }
+};
+
+// Unified middleware verifying either Mobile JWT or Admin session
+const verifyMobileOrAdminAuth = async (req, res, next) => {
+  try {
+    const authHeader = req.headers.authorization;
+    let token = null;
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+      token = authHeader.split(' ')[1];
+    } else if (req.cookies && (req.cookies.accessToken || req.cookies.access)) {
+      token = req.cookies.accessToken || req.cookies.access;
+    }
+
+    if (!token) {
+      return res.status(401).json({ error: 'Authentication required. Please sign in.' });
+    }
+
+    let decoded;
+    try {
+      decoded = verifyAccessToken(token);
+    } catch (e) {
+      if (e.name === 'TokenExpiredError') {
+        return res.status(401).json({ error: 'Session expired. Please refresh your token.', code: 'TOKEN_EXPIRED' });
+      }
+      return res.status(401).json({ error: 'Invalid or malformed authentication token.' });
+    }
+
+    // Try finding MobileUserProfile
+    const mobileProfile = await MobileUserProfile.findById(decoded.id);
+    if (mobileProfile) {
+      req.mobileUser = mobileProfile;
+      req.isMobile = true;
+      return next();
+    }
+
+    // Try finding Staff / Admin User
+    const adminUser = await User.findById(decoded.id);
+    if (adminUser) {
+      req.user = adminUser;
+      req.isAdmin = true;
+      return next();
+    }
+
+    return res.status(401).json({ error: 'Account not found or session revoked.' });
+  } catch (err) {
+    return res.status(401).json({ error: 'Authentication error: ' + err.message });
   }
 };
 
@@ -277,7 +350,10 @@ router.get('/checkin-tickets', async (req, res) => {
     const { status, mobileUserId } = req.query;
     const filter = {};
     if (status) filter.status = status;
-    if (mobileUserId) filter.mobileUserId = mobileUserId;
+    if (mobileUserId) {
+      const userIds = await resolveMobileUserIds(mobileUserId);
+      filter.mobileUserId = { $in: userIds };
+    }
     const tickets = await CheckinTicket.find(filter).sort({ createdAt: -1 });
     res.json(tickets);
   } catch (err) {
@@ -289,13 +365,14 @@ router.get('/checkin-tickets', async (req, res) => {
 router.get('/checkin-tickets/today/:mobileUserId', async (req, res) => {
   try {
     const { mobileUserId } = req.params;
+    const userIds = await resolveMobileUserIds(mobileUserId);
     const todayStart = new Date();
     todayStart.setHours(0, 0, 0, 0);
     const todayEnd = new Date();
     todayEnd.setHours(23, 59, 59, 999);
 
     const ticket = await CheckinTicket.findOne({
-      mobileUserId,
+      mobileUserId: { $in: userIds },
       $or: [
         { requestedAt: { $gte: todayStart, $lte: todayEnd } },
         { confirmedAt: { $gte: todayStart, $lte: todayEnd } }
@@ -331,20 +408,33 @@ router.get('/checkin-tickets/:id', async (req, res) => {
 });
 
 // Create checkin ticket (Mobile user action) with Duplicate Prevention
-router.post('/checkin-tickets', async (req, res) => {
+router.post(['/checkin-tickets', '/checkin-tickets/request'], verifyMobileOrAdminAuth, async (req, res) => {
   try {
-    const { mobileUserId, mobileUserName, mobileUserEmail, mobileUserPhone, mobileUserIdNumber } = req.body;
-    if (!mobileUserId) {
-      return res.status(400).json({ error: 'mobileUserId is required' });
-    }
+    let mobileUserId = req.body.mobileUserId;
+    let mobileUserName = req.body.mobileUserName || 'Member';
+    let mobileUserEmail = req.body.mobileUserEmail || '';
+    let userPhone = req.body.mobileUserPhone || '';
+    let userIdNum = req.body.mobileUserIdNumber || '';
+    let profile = null;
 
-    // Lookup user profile if phone or studentId missing from request body
-    let userPhone = mobileUserPhone || '';
-    let userIdNum = mobileUserIdNumber || '';
-    const profile = await MobileUserProfile.findOne({ mobileUserId });
-    if (profile) {
-      if (!userPhone) userPhone = profile.phoneNumber || '';
-      if (!userIdNum) userIdNum = profile.studentId || '';
+    // If authenticated mobile user, bind identity strictly from token to prevent IDOR
+    if (req.mobileUser) {
+      mobileUserId = req.mobileUser.mobileUserId;
+      mobileUserName = req.mobileUser.name;
+      mobileUserEmail = req.mobileUser.email;
+      userPhone = req.mobileUser.phoneNumber || userPhone;
+      userIdNum = req.mobileUser.studentId || userIdNum;
+    } else {
+      if (!mobileUserId) {
+        return res.status(400).json({ error: 'mobileUserId is required' });
+      }
+      profile = await MobileUserProfile.findOne({ mobileUserId });
+      if (profile) {
+        if (!mobileUserName || mobileUserName === 'Member') mobileUserName = profile.name;
+        if (!mobileUserEmail) mobileUserEmail = profile.email;
+        if (!userPhone) userPhone = profile.phoneNumber || '';
+        if (!userIdNum) userIdNum = profile.studentId || '';
+      }
     }
 
     // Duplicate Check-in Prevention Rule: Check if user already checked in today and has not checked out
@@ -386,6 +476,25 @@ router.post('/checkin-tickets', async (req, res) => {
     });
 
     await ticket.save();
+
+    // Notify Administrator Dashboard & Mobile Clients in real-time
+    const io = req.app.get('io');
+    if (io) {
+      io.emit('admin:notification', {
+        type: 'checkin',
+        title: 'New Check-in Ticket',
+        message: `${ticket.mobileUserName} requested pass #${ticket.ticketCode}`,
+        timestamp: 'Just now',
+        targetTab: 'checkins'
+      });
+      io.emit('mobile:checkin:update', {
+        ticketId: ticket._id,
+        status: ticket.status,
+        mobileUserId: ticket.mobileUserId,
+        ticketCode: ticket.ticketCode
+      });
+    }
+
     res.status(201).json(ticket);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -433,6 +542,20 @@ router.post('/checkin-tickets/:id/confirm', async (req, res) => {
     // 3. Update MobileUserProfile streak & total checkins
     const updatedProfile = await calculateAndApplyStreak(ticket.mobileUserId, ticket.mobileUserName, ticket.mobileUserEmail);
 
+    // Real-time Push to Mobile App
+    const io = req.app.get('io');
+    if (io) {
+      io.emit('mobile:checkin:update', {
+        ticketId: ticket._id,
+        status: 'confirmed',
+        mobileUserId: ticket.mobileUserId,
+        ticketCode: ticket.ticketCode,
+        confirmedAt: ticket.confirmedAt,
+        confirmedBy: ticket.confirmedBy,
+        userStreak: updatedProfile ? updatedProfile.streak : 1
+      });
+    }
+
     res.json({
       message: 'Check-in ticket confirmed and logged to Lounge system successfully',
       ticket,
@@ -444,8 +567,8 @@ router.post('/checkin-tickets/:id/confirm', async (req, res) => {
   }
 });
 
-// Decline checkin ticket (Admin action)
-router.post('/checkin-tickets/:id/decline', async (req, res) => {
+// Decline / Reject checkin ticket (Admin action)
+router.post(['/checkin-tickets/:id/decline', '/checkin-tickets/:id/reject'], async (req, res) => {
   try {
     const { staffName, reason } = req.body;
     const ticket = await CheckinTicket.findById(req.params.id);
@@ -459,6 +582,18 @@ router.post('/checkin-tickets/:id/decline', async (req, res) => {
     ticket.declinedReason = reason || 'Declined by administrator';
     await ticket.save();
 
+    // Real-time Push to Mobile App
+    const io = req.app.get('io');
+    if (io) {
+      io.emit('mobile:checkin:update', {
+        ticketId: ticket._id,
+        status: 'declined',
+        mobileUserId: ticket.mobileUserId,
+        ticketCode: ticket.ticketCode,
+        reason: ticket.declinedReason
+      });
+    }
+
     res.json({
       message: 'Check-in ticket declined',
       ticket,
@@ -469,16 +604,42 @@ router.post('/checkin-tickets/:id/decline', async (req, res) => {
 });
 
 // Checkout user from active checkin ticket
-router.post('/checkin-tickets/:id/checkout', async (req, res) => {
+router.post('/checkin-tickets/:id/checkout', verifyMobileOrAdminAuth, async (req, res) => {
   try {
     const ticket = await CheckinTicket.findById(req.params.id);
     if (!ticket) {
       return res.status(404).json({ error: 'Ticket not found' });
     }
 
+    // Ownership Authorization Check: Mobile user can only check out their own ticket
+    if (req.mobileUser && ticket.mobileUserId !== req.mobileUser.mobileUserId) {
+      return res.status(403).json({ error: 'You are not authorized to check out this ticket' });
+    }
+
     ticket.status = 'checked_out';
     ticket.checkedOutAt = new Date();
     await ticket.save();
+
+    // Also update matching InternetLounge record if active
+    try {
+      await InternetLounge.findOneAndUpdate(
+        { Signature: `Mobile Ticket Pass ${ticket.ticketCode}`, timeOut: null },
+        { $set: { timeOut: new Date().toLocaleTimeString('en-US', { hour12: false }) } }
+      );
+    } catch (e) {
+      console.warn('Could not update Lounge timeOut on ticket checkout:', e.message);
+    }
+
+    // Real-time Push to Mobile App
+    const io = req.app.get('io');
+    if (io) {
+      io.emit('mobile:checkin:update', {
+        ticketId: ticket._id,
+        status: 'checked_out',
+        mobileUserId: ticket.mobileUserId,
+        ticketCode: ticket.ticketCode
+      });
+    }
 
     res.json({
       message: 'Checked out successfully',
@@ -571,9 +732,18 @@ router.get('/issues', async (req, res) => {
 });
 
 // Create issue
-router.post('/issues', async (req, res) => {
+router.post('/issues', verifyMobileOrAdminAuth, async (req, res) => {
   try {
-    const { reporterId, reporterName, title, nodeEquipment, category, description, evidenceUrl } = req.body;
+    const { title, nodeEquipment, category, description, evidenceUrl } = req.body;
+    let reporterId = req.body.reporterId;
+    let reporterName = req.body.reporterName || 'Anonymous';
+
+    // If authenticated mobile user, bind identity strictly to authenticated user
+    if (req.mobileUser) {
+      reporterId = req.mobileUser.mobileUserId;
+      reporterName = req.mobileUser.name;
+    }
+
     if (!description && !title) {
       return res.status(400).json({ error: 'Issue title or description is required' });
     }
@@ -583,7 +753,7 @@ router.post('/issues', async (req, res) => {
       title: title || (description ? description.slice(0, 45) : 'Reported Problem'),
       nodeEquipment: nodeEquipment ? String(nodeEquipment).trim().toUpperCase() : '',
       reporterId: reporterId || null,
-      reporterName: reporterName || 'Anonymous',
+      reporterName: reporterName,
       category: category || 'Hardware',
       description: description || title,
       status: 'pending',
@@ -599,7 +769,7 @@ router.post('/issues', async (req, res) => {
 });
 
 // Toggle / increment affected count
-router.post('/issues/:id/affected', async (req, res) => {
+router.post('/issues/:id/affected', verifyMobileOrAdminAuth, async (req, res) => {
   try {
     const issue = await Issue.findById(req.params.id);
     if (!issue) return res.status(404).json({ error: 'Issue not found' });
@@ -612,8 +782,11 @@ router.post('/issues/:id/affected', async (req, res) => {
 });
 
 // Admin update issue status (seen / pending / resolved)
-router.patch('/issues/:id/status', async (req, res) => {
+router.patch('/issues/:id/status', verifyMobileOrAdminAuth, async (req, res) => {
   try {
+    if (!req.isAdmin) {
+      return res.status(403).json({ error: 'Administrator access required to update issue status' });
+    }
     const { status } = req.body;
     if (!['seen', 'pending', 'resolved'].includes(status)) {
       return res.status(400).json({ error: 'Invalid status value' });
@@ -636,11 +809,12 @@ router.patch('/issues/:id/status', async (req, res) => {
 });
 
 // Vote on issue (up or down)
-router.post('/issues/:id/vote', async (req, res) => {
+router.post('/issues/:id/vote', verifyMobileOrAdminAuth, async (req, res) => {
   try {
-    const { mobileUserId, direction } = req.body;
-    if (!mobileUserId || !['up', 'down'].includes(direction)) {
-      return res.status(400).json({ error: 'mobileUserId and valid direction (up/down) required' });
+    const voterId = req.mobileUser ? req.mobileUser.mobileUserId : req.body.mobileUserId;
+    const { direction } = req.body;
+    if (!voterId || !['up', 'down'].includes(direction)) {
+      return res.status(400).json({ error: 'Valid voter identity and direction (up/down) required' });
     }
 
     const issue = await Issue.findById(req.params.id);
@@ -656,7 +830,7 @@ router.post('/issues/:id/vote', async (req, res) => {
     // Find existing vote
     const existingVote = await IssueVote.findOne({
       issueId: issue._id,
-      mobileUserId,
+      mobileUserId: voterId,
     });
 
     if (existingVote) {
@@ -851,7 +1025,10 @@ router.get('/booking-requests', async (req, res) => {
 
     const filter = {};
     if (status && status !== 'all') filter.status = status;
-    if (mobileUserId) filter.mobileUserId = mobileUserId;
+    if (mobileUserId) {
+      const userIds = await resolveMobileUserIds(mobileUserId);
+      filter.mobileUserId = { $in: userIds };
+    }
 
     const requests = await MobileBookingRequest.find(filter)
       .populate('confirmedBookingId')
@@ -877,12 +1054,18 @@ router.get('/booking-requests/:id', async (req, res) => {
 });
 
 // Cancel a pending booking request
-router.post('/booking-requests/:id/cancel', async (req, res) => {
+router.post('/booking-requests/:id/cancel', verifyMobileOrAdminAuth, async (req, res) => {
   try {
     const request = await MobileBookingRequest.findById(req.params.id);
     if (!request) {
       return res.status(404).json({ error: 'Booking request not found' });
     }
+
+    // Ownership check: User can only cancel their own booking
+    if (req.mobileUser && request.mobileUserId !== req.mobileUser.mobileUserId) {
+      return res.status(403).json({ error: 'You are not authorized to cancel this booking request' });
+    }
+
     if (request.status !== 'pending') {
       return res.status(400).json({ error: 'Only pending booking requests can be cancelled' });
     }
@@ -990,6 +1173,17 @@ const handleEventDetailsUpdate = async (req, res) => {
       });
     }
 
+    // Real-time Push to Mobile App
+    const io = req.app.get('io');
+    if (io) {
+      io.emit('mobile:booking:update', {
+        bookingId: request._id,
+        status: request.status,
+        eventDetailsSubmitted: true,
+        mobileUserId: request.mobileUserId
+      });
+    }
+
     res.json({
       message: 'Event details completed and synchronized to booking successfully',
       bookingRequest: request,
@@ -1003,12 +1197,9 @@ router.put('/booking-requests/:id/event-details', handleEventDetailsUpdate);
 router.post('/booking-requests/:id/event-details', handleEventDetailsUpdate);
 
 // Submit mobile booking request (Mobile user)
-router.post('/booking-requests', async (req, res) => {
+router.post('/booking-requests', verifyMobileOrAdminAuth, async (req, res) => {
   try {
     const {
-      mobileUserId,
-      mobileUserName,
-      contactEmail,
       roomNumber,
       roomType,
       requestedDate,
@@ -1017,6 +1208,17 @@ router.post('/booking-requests', async (req, res) => {
       programName,
       description,
     } = req.body;
+
+    let mobileUserId = req.body.mobileUserId;
+    let mobileUserName = req.body.mobileUserName || 'Member';
+    let contactEmail = req.body.contactEmail;
+
+    // Strict identity binding for authenticated mobile user (anti-IDOR)
+    if (req.mobileUser) {
+      mobileUserId = req.mobileUser.mobileUserId;
+      mobileUserName = req.mobileUser.name;
+      contactEmail = req.mobileUser.email;
+    }
 
     const timeOfArrival = arrivalTime || requestedSlot;
     if (!mobileUserId || !contactEmail || !requestedDate || !timeOfArrival) {
@@ -1084,6 +1286,26 @@ router.post('/booking-requests', async (req, res) => {
     });
 
     await request.save();
+
+    // Real-time Push to Dashboard and Mobile App
+    const io = req.app.get('io');
+    if (io) {
+      io.emit('admin:notification', {
+        type: 'booking',
+        title: 'New Room Booking Request',
+        message: `${request.mobileUserName} requested Room ${request.roomNumber} (${request.arrivalTime || request.requestedSlot})`,
+        timestamp: 'Just now',
+        targetTab: 'bookings'
+      });
+      io.emit('mobile:booking:update', {
+        bookingId: request._id,
+        status: request.status,
+        mobileUserId: request.mobileUserId,
+        roomNumber: request.roomNumber,
+        requestedDate: request.requestedDate
+      });
+    }
+
     res.status(201).json(request);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -1145,38 +1367,50 @@ router.post('/booking-requests/:id/confirm', async (req, res) => {
       });
     }
 
+    // Ensure roomType matches the ROOM_TYPES enum expected by the primary Booking system
+    const validRoomTypes = [
+      'Seminar Room 1',
+      'Seminar Room 2',
+      'Seminar Room 3',
+      'Seminar Room 4',
+      'Conference Room',
+      'Training Lab',
+    ];
+    let finalRoomType = 'Conference Room';
+    if (validRoomTypes.includes(request.roomType)) {
+      finalRoomType = request.roomType;
+    } else if (String(request.roomNumber) === '1') {
+      finalRoomType = 'Seminar Room 1';
+    } else if (String(request.roomNumber) === '2') {
+      finalRoomType = 'Training Lab';
+    } else if (String(request.roomNumber) === '3') {
+      finalRoomType = 'Conference Room';
+    } else if (String(request.roomNumber) === '4') {
+      finalRoomType = 'Seminar Room 2';
+    }
+
     // Call existing booking model creation path
-   const createdBooking = new Booking({
-  startDate: reqDate,
-  endDate: reqDate,
-  date:reqDate,
-
-  name: request.programName || 'IAC Mobile Reservation',
-  programName: request.programName || 'IAC Mobile Reservation',
-
-  organizer: request.mobileUserName || 'Mobile App User',
-  presenter: request.mobileUserName || 'Mobile App User',
-
-  participants: 1,
-
-  eventType: 'meetings',
-  category: 'others',
-  beneficiaries: 'others',
-
-  description:
-    request.description ||
-    `Booked via Mobile App by ${request.mobileUserName}`,
-
-  roomNumber: Number(request.roomNumber || 3),
-
-  // Must exactly match the EventProgram enum
-  roomType: 'Conference Room',
-
-  // Must exactly match the effective EventProgram enum
-  status: 'RESERVED',
-
-  createdBy: request.mobileUserName || 'mobile',
-});
+    const createdBooking = new Booking({
+      startDate: reqDate,
+      endDate: reqDate,
+      date: reqDate,
+      timeSlot: timeVal,
+      name: request.programName || 'IAC Mobile Reservation',
+      programName: request.programName || 'IAC Mobile Reservation',
+      organizer: request.mobileUserName || 'Mobile App User',
+      presenter: request.mobileUserName || 'Mobile App User',
+      participants: 1,
+      eventType: 'meetings',
+      category: 'others',
+      beneficiaries: 'others',
+      description:
+        request.description ||
+        `Booked via Mobile App by ${request.mobileUserName}`,
+      roomNumber: Number(request.roomNumber || 3),
+      roomType: finalRoomType,
+      status: 'RESERVED',
+      createdBy: request.mobileUserName || 'mobile',
+    });
 
     await createdBooking.save();
 
@@ -1184,6 +1418,18 @@ router.post('/booking-requests/:id/confirm', async (req, res) => {
     request.status = 'confirmed';
     request.confirmedBookingId = createdBooking._id;
     await request.save();
+
+    // Real-time Push to Mobile App
+    const io = req.app.get('io');
+    if (io) {
+      io.emit('mobile:booking:update', {
+        bookingId: request._id,
+        status: 'confirmed',
+        mobileUserId: request.mobileUserId,
+        roomNumber: request.roomNumber,
+        eventDetailsSubmitted: request.eventDetailsSubmitted
+      });
+    }
 
     // Send confirmation email
     const emailResult = await sendEmail({
@@ -1228,7 +1474,20 @@ router.post('/booking-requests/:id/reject', async (req, res) => {
     }
 
     request.status = 'rejected';
+    request.rejectionReason = reason || 'Declined by administrator';
+    request.rejectedAt = new Date();
     await request.save();
+
+    // Real-time Push to Mobile App
+    const io = req.app.get('io');
+    if (io) {
+      io.emit('mobile:booking:update', {
+        bookingId: request._id,
+        status: 'rejected',
+        mobileUserId: request.mobileUserId,
+        rejectionReason: request.rejectionReason
+      });
+    }
 
     const dateFormatted = new Date(request.requestedDate).toISOString().split('T')[0];
 
@@ -1359,7 +1618,13 @@ router.post('/smtp-config/test', async (req, res) => {
 // Get Mobile User Profile / Streak with accuracy verification
 router.get('/user-profile/:mobileUserId', async (req, res) => {
   try {
-    let profile = await MobileUserProfile.findOne({ mobileUserId: req.params.mobileUserId });
+    const userIds = await resolveMobileUserIds(req.params.mobileUserId);
+    let profile = await MobileUserProfile.findOne({
+      $or: [
+        { mobileUserId: { $in: userIds } },
+        ...(mongoose.isValidObjectId(req.params.mobileUserId) ? [{ _id: req.params.mobileUserId }] : [])
+      ]
+    });
     if (!profile) {
       profile = new MobileUserProfile({
         mobileUserId: req.params.mobileUserId,
@@ -1440,8 +1705,9 @@ router.get('/leaderboard', async (req, res) => {
 router.get('/history/:mobileUserId', async (req, res) => {
   try {
     const { mobileUserId } = req.params;
-    const tickets = await CheckinTicket.find({ mobileUserId }).lean();
-    const bookings = await MobileBookingRequest.find({ mobileUserId }).lean();
+    const userIds = await resolveMobileUserIds(mobileUserId);
+    const tickets = await CheckinTicket.find({ mobileUserId: { $in: userIds } }).lean();
+    const bookings = await MobileBookingRequest.find({ mobileUserId: { $in: userIds } }).lean();
 
     const history = [];
 

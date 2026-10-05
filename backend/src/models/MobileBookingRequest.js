@@ -17,7 +17,10 @@ const mobileBookingRequestSchema = new mongoose.Schema(
       enum: ['pending', 'confirmed', 'rejected', 'cancelled', 'completed'],
       default: 'pending',
     },
-    confirmedBookingId: { type: mongoose.Schema.Types.ObjectId, ref: 'booking', default: null },
+    rejectionReason: { type: String, default: '' },
+    rejectedAt: { type: Date, default: null },
+    rejectedBy: { type: String, default: '' },
+    confirmedBookingId: { type: mongoose.Schema.Types.ObjectId, ref: 'EventProgram', default: null },
     eventDetailsSubmitted: { type: Boolean, default: false },
     eventDetailsSubmittedAt: { type: Date, default: null },
     eventDetails: {

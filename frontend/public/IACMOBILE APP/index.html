@@ -3,1278 +3,1018 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-<title>IAC MOBILE APP | Adjei Business Hub</title>
+<meta name="robots" content="noindex, nofollow">
+<title>IAC Mobile · Campus Lounge & Bookings</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@500;600&display=swap" rel="stylesheet">
-<style>
-  :root{
-    --ink:#12201B; --ink-2:#1A2C24; --ink-3:#223830;
-    --ticket:#F4EEDF; --ticket-2:#E9E0C9; --ticket-line:#D9CDA9;
-    --ember:#FFFFFF; --ember-dark:#D6D6D0; --ember-text:#12201B;
-    --signal:#3FC7B8; --signal-dark:#1D8478;
-    --marigold:#FFC24B; --marigold-dark:#8A6106;
-    --graphite:#8FA096; --paper-text:#1B2B24;
-  }
-  *{box-sizing:border-box;}
-  body{
-    margin:0; background:#0A130F; font-family:'Inter',sans-serif;
-    display:flex; justify-content:center; align-items:center; padding:16px 12px;
-    min-height:100vh; color:#fff;
-  }
-  .frame{
-    width:390px; max-width:100%; background:var(--ink); border-radius:44px;
-    padding:14px; box-shadow:0 30px 60px rgba(0,0,0,0.5);
-    position:relative;
-  }
-  .screen{
-    background:linear-gradient(180deg, var(--ink) 0%, var(--ink-2) 100%);
-    border-radius:32px; overflow:hidden; height:740px; max-height:calc(100vh - 40px);
-    display:flex; flex-direction:column; position:relative;
-  }
-  .statusbar{ display:flex; justify-content:space-between; padding:16px 22px 4px; color:var(--graphite); font-family:'IBM Plex Mono',monospace; font-size:12px; }
-  .topbar{ display:flex; justify-content:space-between; align-items:center; padding:6px 22px 14px; }
-  .wordmark{ font-family:'Space Grotesk',sans-serif; font-weight:700; font-size:20px; color:var(--ticket); letter-spacing:-0.02em; }
-  .wordmark span{ color:var(--signal); }
-  .datepill{ font-family:'IBM Plex Mono',monospace; font-size:11px; color:var(--graphite); border:1px solid #2C4238; padding:5px 10px; border-radius:20px; }
-
-  .content{ flex:1; padding:0 20px 90px; overflow-y:auto; scroll-behavior:smooth; }
-
-  /* ---- Ticket / day pass ---- */
-  .pass{
-    background:var(--ticket); border-radius:18px; position:relative;
-    padding:20px 20px 16px; margin-bottom:18px;
-    box-shadow:0 12px 24px rgba(0,0,0,0.35);
-    color:var(--paper-text);
-  }
-  .pass::before, .pass::after{
-    content:""; position:absolute; width:22px; height:22px; background:var(--ink-2);
-    border-radius:50%; top:50%; transform:translateY(-50%);
-  }
-  .pass::before{ left:-11px; } .pass::after{ right:-11px; }
-  .pass-top{ display:flex; justify-content:space-between; align-items:flex-start; }
-  .pass-label{ font-family:'IBM Plex Mono',monospace; font-size:11px; color:var(--marigold-dark); text-transform:uppercase; letter-spacing:0.08em; }
-  .pass-venue{ font-family:'Space Grotesk',sans-serif; font-weight:700; font-size:15px; color:var(--paper-text); margin-top:2px; }
-  .streak-num{ text-align:right; }
-  .streak-num .n{ font-family:'Space Grotesk',sans-serif; font-weight:700; font-size:32px; color:var(--paper-text); line-height:1; }
-  .streak-num .l{ font-family:'IBM Plex Mono',monospace; font-size:10px; color:var(--graphite); text-transform:uppercase; }
-
-  .perf{ border-top:2px dashed var(--ticket-line); margin:16px 0 12px; position:relative; }
-  .holes{ display:flex; flex-wrap:wrap; gap:6px; margin-bottom:14px; }
-  .hole{ width:13px; height:13px; border-radius:50%; background:var(--ink); box-shadow:inset 0 1px 2px rgba(0,0,0,0.5); }
-  .hole.empty{ background:transparent; border:1.5px dashed var(--ticket-line); }
-  .hole.new{ animation:punch 0.5s cubic-bezier(.2,1.4,.4,1); }
-  @keyframes punch{ 0%{ transform:scale(0) rotate(-30deg); } 60%{ transform:scale(1.3) rotate(8deg); } 100%{ transform:scale(1) rotate(0); } }
-
-  .pass-foot{ display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px; }
-  .checkin-btn{
-    background:var(--ink); color:#fff; border:none; font-family:'Space Grotesk',sans-serif;
-    font-weight:700; font-size:13px; padding:12px 16px; border-radius:12px; cursor:pointer;
-    display:flex; align-items:center; gap:6px; transition:transform 0.15s, background-color 0.2s;
-  }
-  .checkin-btn:hover{ background:#1f332a; }
-  .checkin-btn:active{ transform:scale(0.96); }
-  .checkin-btn:disabled{ opacity:0.65; cursor:not-allowed; background:#2A3D34; }
-
-  .checkout-btn{
-    background:#DC2626; color:#fff; border:none; font-family:'Space Grotesk',sans-serif;
-    font-weight:700; font-size:12px; padding:10px 14px; border-radius:12px; cursor:pointer;
-    display:flex; align-items:center; gap:6px; transition:transform 0.15s;
-  }
-  .checkout-btn:hover{ background:#B91C1C; }
-
-  .qr-btn{
-    background:var(--marigold); color:#412402; border:none; font-family:'Space Grotesk',sans-serif;
-    font-weight:700; font-size:12px; padding:10px 14px; border-radius:12px; cursor:pointer;
-    display:flex; align-items:center; gap:6px; transition:transform 0.15s; text-decoration:none;
-  }
-
-  .verify-panel{ background:#fff; border-radius:12px; padding:14px; margin-top:10px; border:1px solid var(--ticket-line); }
-  .verify-top{ display:flex; justify-content:space-between; align-items:center; }
-  .ticket-id{ font-family:'IBM Plex Mono',monospace; font-weight:700; font-size:20px; color:var(--ink); letter-spacing:0.06em; margin:4px 0; }
-  .verify-label{ font-family:'IBM Plex Mono',monospace; font-size:10px; color:var(--graphite); text-transform:uppercase; letter-spacing:0.06em; }
-  .verify-status{ display:flex; align-items:center; gap:7px; margin-top:8px; font-size:12px; color:#8A6106; font-weight:600; }
-  .verify-status.confirmed{ color:#166534; font-weight:700; }
-  .verify-status.declined{ color:#991B1B; font-weight:700; }
-  .pulse-dot{ width:8px; height:8px; border-radius:50%; background:#FFC24B; animation:pulse 1s infinite; shrink-0; }
-  .verify-status.confirmed .pulse-dot{ background:#22C55E; animation:none; }
-  .verify-status.declined .pulse-dot{ background:#EF4444; animation:none; }
-  @keyframes pulse{ 0%,100%{opacity:1;} 50%{opacity:0.3;} }
-  .confetti{ position:fixed; width:8px; height:8px; border-radius:50%; background:var(--marigold); pointer-events:none; z-index:100; }
-  @keyframes fly{ to{ transform:translate(var(--dx),var(--dy)) scale(0); opacity:0; } }
-
-  /* ---- quick actions ---- */
-  .quick{ display:flex; gap:10px; margin-bottom:22px; }
-  .qtile{
-    flex:1; background:var(--ink-3); border:1px solid #2C4238; border-radius:14px;
-    padding:14px 12px; cursor:pointer; transition:border-color 0.2s, transform 0.15s;
-  }
-  .qtile:hover{ border-color:var(--signal); transform:translateY(-2px); }
-  .qtile .ic{ font-size:20px; margin-bottom:8px; }
-  .qtile .t{ font-family:'Space Grotesk',sans-serif; font-weight:700; font-size:13px; color:var(--ticket); }
-  .qtile .s{ font-size:11px; color:var(--graphite); margin-top:2px; }
-
-  /* ---- section heading ---- */
-  .sec-head{ display:flex; justify-content:space-between; align-items:baseline; margin-bottom:10px; }
-  .sec-title{ font-family:'Space Grotesk',sans-serif; font-weight:700; font-size:15px; color:var(--ticket); }
-  .sec-link{ font-size:11px; color:var(--signal); font-family:'IBM Plex Mono',monospace; cursor:pointer; }
-
-  /* ---- board leaderboard container ---- */
-  .board{ background:var(--ink-3); border:1px solid #2C4238; border-radius:14px; padding:6px; margin-bottom:22px; }
-
-  /* ---- home carousel slider ---- */
-  .slider{ position:relative; border-radius:16px; overflow:hidden; margin-bottom:22px; background:#0A130F; min-height:160px; }
-  .slider-track{ display:flex; transition:transform 0.45s cubic-bezier(.2,.8,.3,1); }
-  .slide{ min-width:100%; position:relative; height:160px; }
-  .slide-img{ position:absolute; inset:0; width:100%; height:100%; object-fit:cover; }
-  .slide-overlay{ position:absolute; inset:0; background:linear-gradient(180deg, rgba(10,19,15,0.05) 30%, rgba(10,19,15,0.92) 100%); display:flex; flex-direction:column; justify-content:flex-end; padding:14px; }
-  .slide-badge{ font-family:'IBM Plex Mono',monospace; font-size:9px; padding:3px 8px; border-radius:5px; text-transform:uppercase; white-space:nowrap; width:fit-content; margin-bottom:8px; }
-  .slide-badge.pinned{ background:var(--marigold); color:#412402; }
-  .slide-badge.event{ background:var(--signal); color:#04342C; }
-  .slide-badge.class{ background:#AFA9EC; color:#26215C; }
-  .slide-badge.notice{ background:#F87171; color:#450A0A; }
-  .slide-h{ font-family:'Space Grotesk',sans-serif; font-weight:700; font-size:14px; color:#fff; }
-  .slide-d{ font-size:11px; color:#D9DED9; font-family:'IBM Plex Mono',monospace; margin-top:3px; }
-  .slider-arrow{ position:absolute; top:50%; transform:translateY(-50%); background:rgba(10,19,15,0.65); border:none; color:#fff; width:28px; height:28px; border-radius:50%; cursor:pointer; font-size:14px; z-index:2; display:flex; align-items:center; justify-content:center; }
-  .slider-arrow.prev{ left:8px; } .slider-arrow.next{ right:8px; }
-  .dots{ position:absolute; bottom:10px; right:14px; display:flex; gap:5px; z-index:2; }
-  .dot{ width:6px; height:6px; border-radius:50%; background:rgba(255,255,255,0.35); cursor:pointer; }
-  .dot.active{ background:#fff; width:16px; border-radius:3px; transition:width 0.25s; }
-
-  /* ---- announcement vertical list (Redesigned Announcement Page) ---- */
-  .announcement-card{
-    background:var(--ink-3); border:1px solid #2C4238; border-radius:14px; padding:14px; margin-bottom:12px;
-    transition:border-color 0.2s, transform 0.15s;
-  }
-  .announcement-card:hover{ border-color:var(--signal); }
-  .announcement-card .header{ display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; }
-  .announcement-card .title{ font-family:'Space Grotesk',sans-serif; font-weight:700; font-size:15px; color:var(--ticket); margin-bottom:6px; }
-  .announcement-card .date{ font-family:'IBM Plex Mono',monospace; font-size:10px; color:var(--graphite); }
-  .announcement-card .desc{ font-size:12px; color:#D0D7D3; line-height:1.45; }
-  .announcement-card img{ width:100%; height:130px; object-fit:cover; border-radius:10px; margin-top:10px; }
-
-  /* ---- booking history portal ---- */
-  .history-card{
-    background:var(--ink-3); border:1px solid #2C4238; border-radius:14px; padding:14px; margin-bottom:12px;
-  }
-  .history-header{ display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:8px; }
-  .history-title{ font-family:'Space Grotesk',sans-serif; font-weight:700; font-size:14px; color:var(--ticket); }
-  .history-code{ font-family:'IBM Plex Mono',monospace; font-size:11px; color:var(--signal); font-weight:600; margin-top:2px; }
-  .status-pill{ font-family:'IBM Plex Mono',monospace; font-size:9px; padding:4px 8px; border-radius:6px; text-transform:uppercase; font-weight:700; white-space:nowrap; }
-  .status-pill.approved, .status-pill.confirmed{ background:#166534; color:#DCFCE7; }
-  .status-pill.pending{ background:#8A6106; color:#FEF3C7; }
-  .status-pill.declined, .status-pill.rejected{ background:#991B1B; color:#FEE2E2; }
-  .status-pill.checked_out{ background:#374151; color:#E5E7EB; }
-
-  .history-details{ font-size:11px; color:var(--graphite); margin-top:8px; padding-top:8px; border-top:1px dashed #2C4238; display:flex; justify-content:space-between; flex-wrap:wrap; gap:6px; }
-
-  /* ---- leaderboard ---- */
-  .lb-row{ display:flex; align-items:center; gap:12px; padding:10px 8px; border-bottom:1px solid rgba(255,255,255,0.04); }
-  .lb-row:last-child{ border-bottom:none; }
-  .lb-rank{ font-family:'IBM Plex Mono',monospace; font-size:13px; font-weight:700; color:var(--graphite); width:22px; text-align:center; }
-  .lb-avatar{ width:32px; height:32px; border-radius:50%; background:var(--signal); display:flex; align-items:center; justify-content:center; font-family:'Space Grotesk',sans-serif; font-weight:700; font-size:12px; color:#04342C; flex-shrink:0; }
-  .lb-name{ flex:1; font-size:13px; color:var(--ticket); font-weight:500; }
-  .lb-streak{ font-family:'IBM Plex Mono',monospace; font-size:12px; color:var(--marigold); font-weight:700; }
-  .lb-row.me{ background:#1B352B; border-radius:10px; border-bottom:none; }
-
-  /* ---- bottom nav (fixed hanging bottom nav bar) ---- */
-  .navbar{
-    position:fixed; bottom:20px; left:50%; transform:translateX(-50%);
-    width:calc(100% - 24px); max-width:366px; background:var(--ink-3);
-    border:1px solid #3A5246; border-radius:22px; display:flex; padding:6px; z-index:900;
-    box-shadow:0 12px 30px rgba(0,0,0,0.6), 0 0 0 1px rgba(255,255,255,0.05);
-  }
-  .navitem{ flex:1; text-align:center; padding:7px 0; border-radius:12px; cursor:pointer; transition:background 0.2s; }
-  .navitem .ic{ font-size:16px; }
-  .navitem .l{ font-size:8px; color:var(--graphite); font-family:'IBM Plex Mono',monospace; margin-top:2px; text-transform:uppercase; letter-spacing:0.02em; }
-  .navitem.active{ background:var(--ember); }
-  .navitem.active .l{ color:#3A1200; font-weight:700; }
-
-  /* ---- generic card / rooms / report ---- */
-  .room-card{ background:var(--ink-3); border:1px solid #2C4238; border-radius:14px; padding:14px; margin-bottom:12px; cursor:pointer; transition:border-color .2s; }
-  .room-card:hover{ border-color:var(--signal); }
-  .room-card.selected{ border-color:var(--signal); background:#1d382d; }
-  .room-card .t{ font-family:'Space Grotesk',sans-serif; font-weight:700; font-size:14px; color:var(--ticket); }
-  .room-card .s{ font-size:11px; color:var(--graphite); margin-top:4px; }
-  .slot-grid{ display:grid; grid-template-columns:repeat(3,1fr); gap:8px; margin-top:10px; }
-  .slot{ text-align:center; padding:9px 0; border:1px solid #2C4238; border-radius:8px; font-family:'IBM Plex Mono',monospace; font-size:11px; color:var(--graphite); cursor:pointer; }
-  .slot.taken{ opacity:0.35; text-decoration:line-through; cursor:not-allowed; }
-  .slot.picked{ background:var(--signal); color:#04342C; border-color:var(--signal); font-weight:700; }
-
-  .flag-grid{ display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:20px; }
-  .flag-tile{ background:var(--ink-3); border:1px solid #2C4238; border-radius:14px; padding:16px; text-align:center; cursor:pointer; transition:transform .15s; }
-  .flag-tile:hover{ transform:translateY(-2px); border-color:var(--ember); }
-  .flag-tile .ic{ font-size:20px; }
-  .flag-tile .t{ font-family:'Space Grotesk',sans-serif; font-weight:700; font-size:12px; color:var(--ticket); margin-top:6px; }
-
-  .issue{ background:var(--ink-3); border:1px solid #2C4238; border-radius:12px; padding:12px 14px; margin-bottom:10px; }
-  .issue-top{ display:flex; justify-content:space-between; align-items:flex-start; }
-  .issue-t{ font-size:13px; color:var(--ticket); font-weight:500; }
-  .issue-m{ font-size:11px; color:var(--graphite); margin-top:2px; }
-  .status{ font-family:'IBM Plex Mono',monospace; font-size:9px; padding:3px 8px; border-radius:6px; text-transform:uppercase; white-space:nowrap; }
-  .status.open{ background:var(--marigold); color:#412402; }
-  .status.seen{ background:var(--signal); color:#04342C; }
-  .status.resolved{ background:#639922; color:#173404; }
-  .votes{ display:flex; align-items:center; gap:8px; margin-top:10px; }
-  .vbtn{ border:1px solid #2C4238; background:none; color:var(--graphite); border-radius:8px; padding:4px 9px; font-size:12px; cursor:pointer; }
-  .vbtn:hover{ border-color:var(--ember); color:var(--ticket); }
-  .vbtn.active-up{ background:var(--signal); color:#04342C; border-color:var(--signal); }
-  .vbtn.active-down{ background:#f87171; color:#fff; border-color:#f87171; }
-  .vcount{ font-family:'IBM Plex Mono',monospace; font-size:12px; color:var(--ticket); }
-
-  .input-field{ width:100%; background:var(--ink); border:1px solid #2C4238; color:#fff; padding:10px 12px; border-radius:10px; font-size:12px; font-family:'Inter',sans-serif; margin-top:6px; }
-  .input-field:focus{ outline:none; border-color:var(--signal); }
-
-  .toast{ position:fixed; top:20px; left:50%; transform:translateX(-50%); background:#fff; color:#12201B; padding:12px 20px; border-radius:20px; font-size:12px; font-weight:600; box-shadow:0 10px 25px rgba(0,0,0,0.4); z-index:999; display:none; text-align:center; max-width:320px; }
-
-  .hidden{ display:none !important; }
-  .fadein{ animation:fadein .3s ease; }
-  @keyframes fadein{ from{opacity:0; transform:translateY(6px);} to{opacity:1; transform:translateY(0);} }
-
-  ::-webkit-scrollbar{ width:0; }
-</style>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
 </head>
 <body>
 
-<div id="toast" class="toast"></div>
-
-<div class="frame">
-  <div class="screen">
-    <div class="statusbar"><span>9:41</span><span>IAC MOBILE APP</span></div>
-    <div class="topbar">
-      <div class="wordmark">IAC<span>Mobile</span></div>
-      <div class="datepill" id="today">Tue, Jul 28</div>
+<div class="mobile-viewport" style="position:relative;">
+  <!-- CENTRAL AUTH GATE SPLASH SCREEN: Covers protected UI until session is verified -->
+  <div id="authGateSplash" style="position:absolute; inset:0; z-index:99999; background:#0F172A; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:16px; color:#F8FAFC; transition:opacity 0.25s ease;">
+    <div style="width:52px; height:52px; border-radius:16px; background:#F59E0B; display:flex; align-items:center; justify-content:center; font-family:'Plus Jakarta Sans',sans-serif; font-weight:800; font-size:22px; color:#0F172A; box-shadow:0 10px 25px rgba(245,158,11,0.3);">
+      IAC
     </div>
-
-    <!-- USER ACCOUNT IDENTITY BADGE -->
-    <div class="user-badge" style="display:flex; justify-content:space-between; align-items:center; background:var(--ink-3); border:1px solid #2C4238; border-radius:14px; padding:8px 12px; margin:0 20px 14px;">
-      <div style="display:flex; align-items:center; gap:8px; overflow:hidden;">
-        <div style="width:28px; height:28px; border-radius:50%; background:var(--signal); display:flex; align-items:center; justify-content:center; font-family:'Space Grotesk',sans-serif; font-weight:700; font-size:11px; color:#04342C;" id="userInitials">ME</div>
-        <div style="font-size:11px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">
-          <span style="font-weight:700; color:var(--ticket); display:block;" id="userNameDisplay">Mobile Member</span>
-          <span style="color:var(--graphite); font-size:10px; font-family:'IBM Plex Mono',monospace;" id="userEmailDisplay">user@example.com</span>
-        </div>
-      </div>
-      <button onclick="handleLogout()" style="background:transparent; border:1px solid #3A5246; color:var(--marigold); font-family:'IBM Plex Mono',monospace; font-size:10px; padding:5px 10px; border-radius:8px; cursor:pointer; font-weight:600;">Sign Out</button>
+    <div style="display:flex; align-items:center; gap:8px; font-size:13px; font-weight:600; color:#94A3B8; font-family:'IBM Plex Mono',monospace;">
+      <svg style="animation:authSpin 1s linear infinite; width:16px; height:16px;" viewBox="0 0 24 24" fill="none" stroke="#F59E0B" stroke-width="2.5"><circle cx="12" cy="12" r="10" stroke-opacity="0.25"/><path d="M12 2a10 10 0 0 1 10 10"/></svg>
+      <span>Verifying Secure Session...</span>
     </div>
+    <style>@keyframes authSpin{0%{transform:rotate(0deg);}100%{transform:rotate(360deg);}}</style>
+  </div>
 
-    <div class="content">
+  <!-- STATUS BAR SIMULATION -->
+  <div class="status-bar">
+    <span class="status-time">09:41</span>
+    <div class="status-icons">
+      <svg width="15" height="11" viewBox="0 0 15 11" fill="currentColor"><path d="M1 9.5h1.5v-2H1v2zm3 0h1.5v-4H4v4zm3 0h1.5v-6H7v6zm3 0h1.5v-8H10v8zm3 0H14.5v-10H13v10z"/></svg>
+      <svg width="14" height="11" viewBox="0 0 14 11" fill="currentColor"><path d="M7 2.5c2.3 0 4.4.9 6 2.4l-6 6.1-6-6.1c1.6-1.5 3.7-2.4 6-2.4zm0-2.5C3.9 0 1.2 1.3 0 3.3l7 7.7 7-7.7C12.8 1.3 10.1 0 7 0z"/></svg>
+      <svg width="22" height="11" viewBox="0 0 22 11" fill="currentColor"><rect x="1" y="1" width="18" height="9" rx="2.5" fill="none" stroke="currentColor" stroke-width="1.2"/><rect x="2.5" y="2.5" width="13" height="6" rx="1.5"/><path d="M20.5 4v3" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>
+    </div>
+  </div>
 
-      <!-- HOME TAB -->
-      <div id="tab-home" class="fadein">
-        <div class="pass">
-          <div class="pass-top">
-            <div>
-              <div class="pass-label">Today's pass · internet lounge</div>
-              <div class="pass-venue">Adjei Business Hub</div>
-            </div>
-            <div class="streak-num"><div class="n" id="streakN">0</div><div class="l">day streak</div></div>
-          </div>
-          <div class="perf"></div>
-          <div class="holes" id="holesRow"></div>
-
-          <!-- CHECK-IN STATUS BADGE / CONTROLS -->
-          <div id="checkinStatusBanner" class="hidden" style="margin-bottom:12px; background:#164E63; border:1px solid #0891B2; padding:10px 12px; border-radius:10px; font-size:12px; color:#ECFEFF; display:flex; justify-content:space-between; align-items:center;">
-            <div>
-              <strong>✓ Checked In for Today</strong>
-              <div style="font-size:10px; color:#A5F3FC; font-family:'IBM Plex Mono',monospace;" id="bannerTicketCode">Ticket ID: IAC-0000</div>
-            </div>
-            <button class="checkout-btn" onclick="checkoutActiveTicket()">Check Out</button>
-          </div>
-
-          <div class="pass-foot" id="passFoot">
-            <button class="qr-btn" onclick="openAttendanceForm()">
-              <i>📷</i> Scan QR / Form
-            </button>
-            <button class="checkin-btn" id="checkinBtn" onclick="startCheckin()">
-              <i>▣</i> Check In
-            </button>
-          </div>
-          <div id="verifyPanel" class="hidden"></div>
-        </div>
-
-        <div class="quick">
-          <div class="qtile" onclick="showTab('book')"><div class="ic">🗓</div><div class="t">Book a room</div><div class="s">Seminar · Conference · Lab</div></div>
-          <div class="qtile" onclick="showTab('history')"><div class="ic">📜</div><div class="t">My History</div><div class="s">Check-ins & Bookings</div></div>
-        </div>
-
-        <!-- MOBILE HOME PAGE FEATURED ANNOUNCEMENTS CAROUSEL SLIDER -->
-        <div class="sec-head"><div class="sec-title">On the board</div><div class="sec-link" onclick="showTab('board')">view list →</div></div>
-        <div class="slider" id="sliderPreview"></div>
-
-        <div class="sec-head"><div class="sec-title">Top streaks</div><div class="sec-link" onclick="showTab('rank')">leaderboard →</div></div>
-        <div class="board" id="lbPreview"></div>
+  <!-- TOP APP BAR -->
+  <header class="app-header">
+    <div class="header-left">
+      <div class="iac-logo">IAC</div>
+      <div class="campus-selector" onclick="openCampusModal()">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
+        <span id="currentCampusName">MAIN LOUNGE CAMPUS</span>
+        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg>
       </div>
-
-      <!-- BOOKING HISTORY PORTAL TAB -->
-      <div id="tab-history" class="hidden">
-        <div class="sec-title" style="margin-bottom:6px;">Booking & Check-in History</div>
-        <div style="font-size:11px; color:var(--graphite); margin-bottom:12px;">View all your past and pending check-in passes and room requests.</div>
-
-        <!-- Filter Pills -->
-        <div style="display:flex; gap:8px; margin-bottom:14px;">
-          <button class="status-pill approved" onclick="filterHistory('all')" style="cursor:pointer;">All</button>
-          <button class="status-pill pending" onclick="filterHistory('checkin')" style="cursor:pointer;">Check-ins</button>
-          <button class="status-pill checked_out" onclick="filterHistory('booking')" style="cursor:pointer;">Room Bookings</button>
-        </div>
-
-        <div id="historyList"></div>
+    </div>
+    <div class="header-right">
+      <button class="icon-btn" onclick="openNotifications()" aria-label="Notifications">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+        <span class="notif-dot" id="headerNotifDot"></span>
+      </button>
+      <div class="avatar-wrap" onclick="switchTab('profile')">
+        <img src="assets/avatar.jpg" alt="User" class="header-avatar" onerror="this.src='/frontend/public/assets/avatar.jpg'; this.onerror=null;">
+        <span class="online-indicator"></span>
       </div>
+    </div>
+  </header>
 
-      <!-- BOOK ROOM TAB -->
-      <div id="tab-book" class="hidden">
-        <div class="sec-title" style="margin-bottom:12px;">Book a room</div>
-        <div class="room-card" onclick="pickRoom(this,'Seminar room', '3')">
-          <div class="t">Seminar room (Room 3)</div><div class="s">24 seats · projector · whiteboard</div>
-        </div>
-        <div class="room-card" onclick="pickRoom(this,'Conference room', '1')">
-          <div class="t">Conference room (Room 1)</div><div class="s">12 seats · video conferencing</div>
-        </div>
-        <div class="room-card" onclick="pickRoom(this,'Training lab', '2')">
-          <div class="t">Training lab (Room 2)</div><div class="s">18 workstations · Korean class venue</div>
-        </div>
-        
-        <div id="slotsWrap" class="hidden" style="margin-top:14px;">
-          <div class="sec-title" style="margin:12px 0 4px; font-size:13px;" id="slotRoomName">Reservation Details</div>
-          
-          <div style="margin-bottom:12px;">
-            <label style="font-size:11px; color:var(--graphite); display:block; margin-bottom:4px; font-family:'IBM Plex Mono',monospace;">SELECT BOOKING DATE:</label>
-            <input type="date" id="bookingDateInput" class="input-field" style="width:100%; background:var(--ink); border:1px solid #2C4238; color:#fff; padding:10px; border-radius:10px; font-family:'Inter',sans-serif;">
-          </div>
+  <!-- SCREEN TITLE BANNER -->
+  <div class="screen-title-bar">
+    <h2 id="screenTitle">Home</h2>
+  </div>
 
-          <div style="margin-bottom:12px;">
-            <label style="font-size:11px; color:var(--graphite); display:block; margin-bottom:4px; font-family:'IBM Plex Mono',monospace;">TIME OF ARRIVAL:</label>
-            <input type="time" id="arrivalTimeInput" class="input-field" value="09:00" style="width:100%; background:var(--ink); border:1px solid #2C4238; color:#fff; padding:10px; border-radius:10px; font-family:'Inter',sans-serif;">
-          </div>
+  <!-- SCROLLABLE CONTENT VIEWPORT -->
+  <main class="content-scroll" id="contentArea">
 
-          <div style="margin-bottom:12px;">
-            <label style="font-size:11px; color:var(--graphite); display:block; margin-bottom:4px; font-family:'IBM Plex Mono',monospace;">PROGRAM / EVENT TITLE:</label>
-            <input type="text" id="bookingProgramInput" class="input-field" placeholder="e.g. Group Study Session" value="Study Session" style="width:100%; background:var(--ink); border:1px solid #2C4238; color:#fff; padding:10px; border-radius:10px; font-family:'Inter',sans-serif;">
-          </div>
-
-          <button class="checkin-btn" style="width:100%; justify-content:center; margin-top:16px; background:var(--signal); color:#04342C;" onclick="confirmBooking()">Submit Booking Request</button>
-        </div>
-      </div>
-
-      <!-- REDESIGNED ANNOUNCEMENT PAGE (Admin / Clean Vertical List Layout) -->
-      <div id="tab-board" class="hidden">
-        <div class="sec-title" style="margin-bottom:4px;">Announcements & Events</div>
-        <div style="font-size:11px; color:var(--graphite); margin-bottom:14px;">Latest news, scheduled maintenance, and community activities.</div>
-        <div id="announcementsList"></div>
-      </div>
-
-      <!-- RANKINGS / LEADERBOARD TAB -->
-      <div id="tab-rank" class="hidden">
-        <div class="sec-title" style="margin-bottom:12px;">Streak & Attendance Leaderboard</div>
-        <div id="myRankCard" style="background:#1B352B; border:1px solid #3FC7B8; border-radius:14px; padding:12px 14px; margin-bottom:14px; display:flex; justify-content:space-between; align-items:center;">
+    <!-- ==================== TAB 1: HOME ==================== -->
+    <section id="view-home" class="screen-view active">
+      <!-- Member Greeting -->
+      <div class="member-welcome-card">
+        <div class="welcome-user">
+          <img src="assets/avatar.jpg" alt="Alex Vance" class="welcome-avatar" onerror="this.src='/frontend/public/assets/avatar.jpg'; this.onerror=null;">
           <div>
-            <div style="font-size:10px; color:var(--signal); font-family:'IBM Plex Mono',monospace; text-transform:uppercase;">Your Current Rank</div>
-            <div style="font-family:'Space Grotesk',sans-serif; font-weight:700; font-size:18px; color:#fff;" id="myRankDisplay">Rank #--</div>
+            <div class="welcome-name">
+              <span>Good morning, <strong id="homeUserName">Alex</strong></span>
+              <span class="badge-tier">Tier 1</span>
+            </div>
+            <div class="welcome-sub">Main Lounge • Cluster 04</div>
           </div>
-          <div style="text-align:right;">
-            <div style="font-family:'Space Grotesk',sans-serif; font-weight:700; font-size:18px; color:var(--marigold);" id="myStreakDisplay">0d streak</div>
-            <div style="font-size:10px; color:var(--graphite); font-family:'IBM Plex Mono',monospace;" id="myTotalCheckinsDisplay">0 total check-ins</div>
+        </div>
+        <button class="pass-mini-btn" onclick="switchTab('checkin')" title="Access Badge">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><circle cx="12" cy="13" r="3"/></svg>
+        </button>
+      </div>
+
+      <!-- Current Access Pass (Checked in vs Not checked in) -->
+      <div class="access-pass-card" id="homeAccessPassCard">
+        <div class="pass-header">
+          <span class="status-pill active-pill" id="homePassStatusPill">
+            <span class="dot"></span> <span id="homePassStatusText">ACTIVE CHECK-IN</span>
+          </span>
+          <span class="session-code" id="homeSessionCode">SESSION #IAC-8894</span>
+        </div>
+        <h3 class="pass-title" id="homePassTitle">Current Access Pass</h3>
+        <p class="pass-subtitle" id="homePassSubtitle">Checked into Main Lounge at 09:15 AM</p>
+        
+        <div class="progress-wrap" id="homeProgressWrap">
+          <div class="progress-labels">
+            <span id="elapsedTimeLabel">2h 45m elapsed</span>
+            <span id="remainingTimeLabel">3h 15m remaining</span>
+          </div>
+          <div class="progress-bar-bg">
+            <div class="progress-bar-fill" id="homeProgressBar" style="width: 55%;"></div>
           </div>
         </div>
 
-        <div class="board" id="lbFull"></div>
-
-        <div class="sec-title" style="margin:18px 0 8px; font-size:13px;">Streak Milestones</div>
-        <div class="quick">
-          <div class="qtile" id="mSpark" style="text-align:center;"><div style="font-size:20px;">⚡</div><div class="t">Spark</div><div class="s">3 days</div></div>
-          <div class="qtile" id="mFire" style="text-align:center;"><div style="font-size:20px;">🔥</div><div class="t">Fire</div><div class="s">7 days</div></div>
-          <div class="qtile" id="mEmber" style="text-align:center;"><div style="font-size:20px;">🌟</div><div class="t">Ember</div><div class="s">14 days</div></div>
-          <div class="qtile" id="mFlame" style="text-align:center;"><div style="font-size:20px;">🏆</div><div class="t">Flame</div><div class="s">30 days</div></div>
+        <div class="pass-actions">
+          <button class="btn btn-yellow w-full" id="btnHomePassAction" onclick="handleHomePassClick()">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><rect x="3" y="4" width="18" height="16" rx="2"/><line x1="7" y1="8" x2="17" y2="8"/><line x1="7" y1="12" x2="17" y2="12"/><line x1="7" y1="16" x2="13" y2="16"/></svg>
+            <span id="homePassBtnText">View Digital Pass & QR</span>
+          </button>
         </div>
       </div>
 
-      <!-- REPORT ISSUE TAB -->
-      <div id="tab-report" class="hidden">
-        <div class="sec-title" style="margin-bottom:12px;">Report an issue</div>
-        <div class="flag-grid">
-          <div class="flag-tile" onclick="flagPreset('Slow wifi in the internet lounge', 'Equipment')"><div class="ic">📶</div><div class="t">Slow wifi</div></div>
-          <div class="flag-tile" onclick="flagPreset('AC not cooling properly in seminar room', 'Facility')"><div class="ic">❄</div><div class="t">AC issue</div></div>
-          <div class="flag-tile" onclick="flagPreset('Noise levels high near study area', 'General')"><div class="ic">🔊</div><div class="t">Noise</div></div>
-          <div class="flag-tile" onclick="flagPreset('Missed my check-in verification', 'General')"><div class="ic">🎟</div><div class="t">Missing check-in</div></div>
+      <!-- Quick Actions Grid -->
+      <div class="section-label-row">
+        <h3>Quick Actions</h3>
+        <span class="subtle-count">4 Available</span>
+      </div>
+      <div class="quick-grid">
+        <button class="quick-tile" onclick="openNewBookingModal()">
+          <div class="tile-icon-box">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+          </div>
+          <h4>Reserve Desk</h4>
+          <p>Cluster A & B slots</p>
+        </button>
+
+        <button class="quick-tile" onclick="switchTab('issues'); focusQuickReport();">
+          <div class="tile-icon-box">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+          </div>
+          <h4>Report Fault</h4>
+          <p>Hardware & stations</p>
+        </button>
+
+        <button class="quick-tile" onclick="openWifiModal()">
+          <div class="tile-icon-box">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12.55a11 11 0 0 1 14.08 0"/><path d="M1.42 9a16 16 0 0 1 21.16 0"/><path d="M8.53 16.11a6 6 0 0 1 6.95 0"/><line x1="12" y1="20" x2="12.01" y2="20"/></svg>
+          </div>
+          <h4>Lounge WiFi</h4>
+          <p>Passcode & certs</p>
+        </button>
+
+        <button class="quick-tile" onclick="openScanModal()">
+          <div class="tile-icon-box">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7V5a2 2 0 0 1 2-2h2"/><path d="M17 3h2a2 2 0 0 1 2 2v2"/><path d="M21 17v2a2 2 0 0 1-2 2h-2"/><path d="M7 21H5a2 2 0 0 1-2-2v-2"/></svg>
+          </div>
+          <h4>Scan Station</h4>
+          <p>Instant NFC / QR sync</p>
+        </button>
+      </div>
+
+      <!-- Upcoming Reservation Card -->
+      <div class="upcoming-card" id="homeUpcomingCard">
+        <div class="upcoming-header">
+          <div class="upcoming-badge">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/></svg>
+            <span>Upcoming Reservation</span>
+          </div>
+          <span class="status-badge-confirmed">CONFIRMED</span>
+        </div>
+        <div class="upcoming-slot-row">
+          <div class="slot-time" id="homeUpcomingTime">Today at 14:00</div>
+          <div class="slot-node" id="homeUpcomingNode">LAB-PC-03</div>
+        </div>
+        <div class="upcoming-room-title" id="homeUpcomingRoom">Room 3 (Compute Lab) • High Performance Node</div>
+        <div class="rfid-tag-row">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 10a8 8 0 0 1 16 0"/><path d="M7 13a4 4 0 0 1 10 0"/></svg>
+          <span>RFID Keycard Provisioned to Badge #441</span>
+        </div>
+        <div class="upcoming-actions">
+          <button class="btn btn-secondary flex-1" onclick="switchTab('bookings')">Manage</button>
+          <button class="btn btn-secondary flex-1" onclick="showDirectionsModal()">Directions</button>
+        </div>
+      </div>
+
+      <!-- Live Advisories -->
+      <div class="advisory-card">
+        <div class="advisory-top">
+          <div class="advisory-title">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/></svg>
+            <span>Live Advisories</span>
+          </div>
+          <span class="notice-pill">● New notice</span>
+        </div>
+        <div class="advisory-headline">
+          <strong id="advisoryHeading">Scheduled Maintenance</strong>
+          <span class="advisory-time">23:00 UTC</span>
+        </div>
+        <p class="advisory-desc" id="advisoryText">
+          Compute Cluster Nodes 12-16 undergoing firmware patches tonight at 23:00 UTC. Secondary switches will remain active for lounge terminals.
+        </p>
+        <button class="advisory-link" onclick="openAdvisoryModal()">Read Advisory →</button>
+      </div>
+
+      <!-- Activity Summary -->
+      <div class="section-label-row">
+        <h3>Your IAC Activity Summary</h3>
+        <span class="subtle-count">This Month</span>
+      </div>
+      <div class="stats-summary-grid">
+        <div class="stat-card">
+          <div class="stat-num" id="statCheckins">18</div>
+          <div class="stat-lbl">Total Check-ins</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-num text-yellow"><span class="flame">🔥</span> <span id="statStreak">5</span></div>
+          <div class="stat-lbl">Day Streak</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-num" id="statTickets">0</div>
+          <div class="stat-lbl">Open Tickets</div>
+        </div>
+      </div>
+
+      <!-- Campus Atmosphere Banner -->
+      <div class="campus-atmosphere-card">
+        <img src="assets/atmosphere.jpg" alt="Campus Atmosphere" class="atmosphere-bg" onerror="this.src='/frontend/public/assets/atmosphere.jpg'; this.onerror=null;">
+        <div class="atmosphere-scrim"></div>
+        <div class="atmosphere-content">
+          <span class="atmosphere-kicker">CAMPUS ATMOSPHERE</span>
+          <div class="atmosphere-footer">
+            <h4>Quiet Focus Hours Active</h4>
+            <span class="capacity-pill">42% Cap</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ==================== TAB 2: CHECK-IN ==================== -->
+    <section id="view-checkin" class="screen-view">
+      <div class="checkin-hero-card">
+        <div class="qr-ticket-surface">
+          <div class="ticket-brand-row">
+            <span class="ticket-tag">IAC LOUNGE PASS</span>
+            <span class="ticket-validity" id="ticketStatusBadge">ACTIVE TICKET</span>
+          </div>
+
+          <!-- Dynamic QR Code Simulation Container -->
+          <div class="qr-canvas-box" id="qrCanvasBox">
+            <div class="qr-pattern">
+              <div class="qr-corner tl"></div>
+              <div class="qr-corner tr"></div>
+              <div class="qr-corner bl"></div>
+              <div class="qr-center-icon">
+                <span>IAC</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="ticket-id-display" id="passCodeLarge">IAC-8894</div>
+          <div class="ticket-member-name" id="passMemberName">Alex Vance</div>
+          <div class="ticket-meta-grid">
+            <div>
+              <span class="meta-label">MEMBER ID</span>
+              <span class="meta-value">IAC-USR-88402</span>
+            </div>
+            <div>
+              <span class="meta-label">VENUE</span>
+              <span class="meta-value">Main Lounge</span>
+            </div>
+            <div>
+              <span class="meta-label">CHECKED IN</span>
+              <span class="meta-value" id="passCheckedInAt">Today, 09:15</span>
+            </div>
+            <div>
+              <span class="meta-label">EXPIRES</span>
+              <span class="meta-value">17:00 (Daily)</span>
+            </div>
+          </div>
         </div>
 
-        <div style="margin-bottom:16px; background:var(--ink-3); border:1px solid #2C4238; border-radius:14px; padding:12px;">
-          <div style="font-size:12px; font-weight:700; color:var(--ticket); margin-bottom:6px;">Submit Custom Report</div>
-          <select id="issueCatSelect" class="input-field" style="margin-bottom:6px;">
-            <option value="General">General</option>
-            <option value="Equipment">Equipment</option>
-            <option value="Facility">Facility</option>
-            <option value="Cleanliness">Cleanliness</option>
+        <div class="checkin-btn-row">
+          <button class="btn btn-yellow w-full" id="btnToggleCheckin" onclick="toggleLoungeAccess()">
+            Check Out of Lounge
+          </button>
+        </div>
+      </div>
+
+      <!-- Physical Access Beacon -->
+      <div class="beacon-card">
+        <div class="beacon-icon">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2a10 10 0 1 0 10 10A10 10 0 0 0 12 2zm0 14a4 4 0 1 1 4-4 4 4 0 0 1-4 4z"/></svg>
+        </div>
+        <div class="beacon-info">
+          <h4>Tap Station Beacon</h4>
+          <p>Hold NFC badge or device within 2 inches of desk reader for instant tap-in.</p>
+        </div>
+        <button class="btn-sm btn-secondary" onclick="simulateNfcTap()">Tap NFC</button>
+      </div>
+
+      <!-- Checkin History & Streaks -->
+      <div class="section-label-row mt-4">
+        <h3>Lounge Attendance Streak</h3>
+        <span class="subtle-count">Tier 1 Standing</span>
+      </div>
+      <div class="streak-detail-card">
+        <div class="streak-big-stat">
+          <div class="streak-flame">🔥</div>
+          <div>
+            <div class="streak-val"><span id="streakCountLarge">7</span> Days Active Streak</div>
+            <div class="streak-sub">Checked in consecutively since Monday</div>
+          </div>
+        </div>
+        <div class="streak-week-pills">
+          <span class="day-pill past">M</span>
+          <span class="day-pill past">T</span>
+          <span class="day-pill past">W</span>
+          <span class="day-pill past">T</span>
+          <span class="day-pill past">F</span>
+          <span class="day-pill active">S</span>
+          <span class="day-pill">S</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- ==================== TAB 3: BOOKINGS ==================== -->
+    <section id="view-bookings" class="screen-view">
+      <div class="section-header-banner">
+        <div>
+          <h3>Room & Station Bookings</h3>
+          <p>Manage workstation access & space permits</p>
+        </div>
+        <button class="btn btn-yellow btn-sm" onclick="openNewBookingModal()">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          Request
+        </button>
+      </div>
+
+      <!-- Segmented Tabs -->
+      <div class="segmented-control">
+        <button class="segment-tab active" id="tabBookingUpcoming" onclick="filterBookingsTab('upcoming')">Upcoming (2)</button>
+        <button class="segment-tab" id="tabBookingPrevious" onclick="filterBookingsTab('previous')">Previous (5)</button>
+        <button class="segment-tab" id="tabBookingDrafts" onclick="filterBookingsTab('drafts')">Drafts (0)</button>
+      </div>
+
+      <!-- Booking Cards List -->
+      <div class="bookings-list" id="bookingsListContainer">
+        <!-- Rendered dynamically -->
+      </div>
+
+      <!-- Priority Station Check-in info card -->
+      <div class="info-banner-card">
+        <div class="info-banner-icon">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+        </div>
+        <div>
+          <strong>Priority Station Check-In</strong>
+          <p>Hold times expire 15 mins post slot start. Tap station beacon on arrival to maintain access permit.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ==================== TAB 4: ISSUES ==================== -->
+    <section id="view-issues" class="screen-view">
+      <div class="section-header-banner">
+        <div>
+          <h3>Hardware & Facility Help</h3>
+          <p>Desk Ops monitoring active • Mean response ~8m</p>
+        </div>
+        <button class="btn btn-yellow btn-sm" onclick="focusQuickReport()">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          Report
+        </button>
+      </div>
+
+      <!-- Telemetry Banner -->
+      <div class="telemetry-bar">
+        <div class="telemetry-left">
+          <div class="telemetry-icon">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><circle cx="19" cy="6" r="2"/><circle cx="5" cy="6" r="2"/><circle cx="19" cy="18" r="2"/><circle cx="5" cy="18" r="2"/><line x1="12" y1="9" x2="12" y2="3"/><line x1="12" y1="15" x2="12" y2="21"/></svg>
+          </div>
+          <div>
+            <strong>Main Lounge Systems</strong>
+            <p>48 active nodes • 97.9% operational</p>
+          </div>
+        </div>
+        <span class="telemetry-pill">✔ Telemetry OK</span>
+      </div>
+
+      <!-- Status Filter Chips -->
+      <div class="filter-chips-scroller">
+        <button class="chip-filter active" onclick="filterIssues('all', this)">All Statuses (<span id="issueCountAll">6</span>)</button>
+        <button class="chip-filter" onclick="filterIssues('pending', this)">Pending (<span id="issueCountPending">1</span>)</button>
+        <button class="chip-filter" onclick="filterIssues('in-progress', this)">In-Progress (<span id="issueCountProg">1</span>)</button>
+        <button class="chip-filter" onclick="filterIssues('resolved', this)">Resolved (<span id="issueCountRes">4</span>)</button>
+      </div>
+
+      <!-- Issues Feed List -->
+      <div class="issues-feed" id="issuesListContainer">
+        <!-- Rendered dynamically -->
+      </div>
+
+      <!-- Quick Report Problem Form -->
+      <div class="quick-report-container" id="quickReportSection">
+        <div class="report-box-header" onclick="toggleReportForm()">
+          <div class="report-box-left">
+            <div class="report-icon-box">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+            </div>
+            <div>
+              <h4>Quick Report Problem</h4>
+              <p>Instant ticket generation to on-site technicians</p>
+            </div>
+          </div>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" id="reportFormChevron"><polyline points="6 9 12 15 18 9"/></svg>
+        </div>
+
+        <form id="reportIssueForm" onsubmit="handleReportSubmit(event)">
+          <div class="form-field">
+            <label>Issue Title</label>
+            <input type="text" id="repTitle" placeholder="Brief summary of the problem" required>
+          </div>
+
+          <div class="form-field">
+            <div class="field-label-row">
+              <label>Target Node / Equipment</label>
+              <span class="field-hint">Check sticker on desk</span>
+            </div>
+            <div class="input-with-icon">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+              <input type="text" id="repNode" placeholder="E.G. LAB-PC-03 OR DESK 14">
+            </div>
+          </div>
+
+          <div class="form-field">
+            <label>Category</label>
+            <div class="category-button-grid">
+              <button type="button" class="cat-btn active" data-cat="Hardware" onclick="selectCategory(this, 'Hardware')">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg> Hardware
+              </button>
+              <button type="button" class="cat-btn" data-cat="Software" onclick="selectCategory(this, 'Software')">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg> Software
+              </button>
+              <button type="button" class="cat-btn" data-cat="Network" onclick="selectCategory(this, 'Network')">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12.55a11 11 0 0 1 14.08 0"/><path d="M1.42 9a16 16 0 0 1 21.16 0"/><path d="M8.53 16.11a6 6 0 0 1 6.95 0"/><line x1="12" y1="20" x2="12.01" y2="20"/></svg> Network
+              </button>
+              <button type="button" class="cat-btn" data-cat="Facility" onclick="selectCategory(this, 'Facility')">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 21h18"/><path d="M5 21V7l8-4v18"/><path d="M19 21V11l-6-4"/></svg> Facility
+              </button>
+              <button type="button" class="cat-btn" data-cat="Noise" onclick="selectCategory(this, 'Noise')">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/></svg> Noise
+              </button>
+              <button type="button" class="cat-btn" data-cat="Power" onclick="selectCategory(this, 'Power')">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg> Power
+              </button>
+            </div>
+          </div>
+
+          <div class="form-field">
+            <label>Detailed Description</label>
+            <textarea id="repDesc" rows="3" placeholder="Include error codes, abnormal sounds, or reproduction steps..." required></textarea>
+          </div>
+
+          <div class="form-field">
+            <label>Evidence Attachment</label>
+            <div class="attachment-upload-box" onclick="document.getElementById('evidenceFileInput').click()">
+              <input type="file" id="evidenceFileInput" style="display:none;" accept="image/*" onchange="handleEvidenceSelect(event)">
+              <div class="attachment-content">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+                <span id="evidenceFileName">Attach Photo / Screenshot</span>
+              </div>
+              <span class="file-format-badge">PNG, JPG</span>
+            </div>
+          </div>
+
+          <button type="submit" class="btn btn-yellow w-full" id="btnSubmitProblemReport">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+            Submit Problem Report
+          </button>
+        </form>
+      </div>
+
+      <!-- Direct Walk-up Desk Contact -->
+      <div class="walkup-contact-card">
+        <div class="walkup-left">
+          <div class="walkup-icon">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg>
+          </div>
+          <div>
+            <strong>Direct Walk-up Desk</strong>
+            <p>Opposite Station 12 • Intercom Ext #404</p>
+          </div>
+        </div>
+        <button class="btn-sm btn-secondary" onclick="callWalkupDesk()">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
+          Call
+        </button>
+      </div>
+    </section>
+
+    <!-- ==================== TAB 5: PROFILE ==================== -->
+    <section id="view-profile" class="screen-view">
+      <div class="profile-header-card">
+        <div class="profile-avatar-container">
+          <img src="assets/avatar.jpg" alt="Alex Vance" class="profile-big-avatar" onerror="this.src='/frontend/public/assets/avatar.jpg'; this.onerror=null;">
+          <button class="avatar-camera-btn" onclick="document.getElementById('avatarUploadInput').click()" title="Change avatar">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+          </button>
+          <input type="file" id="avatarUploadInput" style="display:none;" accept="image/*" onchange="handleAvatarChange(event)">
+        </div>
+        <div class="online-pill-badge">● ONLINE</div>
+        <h3 class="profile-name" id="profileNameDisplay">Alex Vance</h3>
+        <p class="profile-tier-sub">Tier 1 Member • Spatial Dynamics Research</p>
+        <div class="profile-id-chip">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><circle cx="12" cy="10" r="3"/></svg>
+          <span id="profileIdDisplay">IAC-USR-88402</span>
+          <span>•</span>
+          <span>🏢 US-East Main Lounge</span>
+        </div>
+      </div>
+
+      <!-- Stats Grid -->
+      <div class="profile-stats-row">
+        <div class="pstat-card">
+          <div class="pstat-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></div>
+          <div class="pstat-val" id="profileCheckinCount">28</div>
+          <div class="pstat-lbl">Total Check-Ins</div>
+        </div>
+        <div class="pstat-card">
+          <div class="pstat-icon text-yellow">🔥</div>
+          <div class="pstat-val text-yellow" id="profileStreakCount">7 <span style="font-size:12px; font-weight:600;">days</span></div>
+          <div class="pstat-lbl">Streak</div>
+        </div>
+        <div class="pstat-card">
+          <div class="pstat-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></div>
+          <div class="pstat-val">142<span style="font-size:12px; font-weight:600;">h</span></div>
+          <div class="pstat-lbl">Logged Time</div>
+        </div>
+      </div>
+
+      <!-- Member Credentials Card -->
+      <div class="credentials-card">
+        <div class="credentials-top">
+          <div class="cred-title">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+            <span>Member Credentials</span>
+          </div>
+          <span class="active-sync-badge">Active Sync</span>
+        </div>
+
+        <div class="cred-row">
+          <div class="cred-left">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/></svg>
+            <span>RFID Badge</span>
+          </div>
+          <span class="cred-val font-mono">#441-A89F <span class="green-dot">●</span></span>
+        </div>
+
+        <div class="cred-row">
+          <div class="cred-left">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="8.5" cy="7" r="4"/><polyline points="17 11 19 13 23 9"/></svg>
+            <span>Assigned Access</span>
+          </div>
+          <span class="cred-val text-right">Tier A (10G LAN & High Compute)</span>
+        </div>
+
+        <div class="cred-row flex-col items-start gap-1">
+          <div class="w-full flex justify-between">
+            <div class="cred-left">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+              <span>Weekly Allocation</span>
+            </div>
+            <span class="cred-val text-yellow-dark">18.5 hrs remaining</span>
+          </div>
+          <div class="w-full progress-bar-bg mt-1">
+            <div class="progress-bar-fill" style="width: 53.7%;"></div>
+          </div>
+          <div class="w-full flex justify-between text-[10px] text-muted mt-1 font-mono">
+            <span>21.5h utilized</span>
+            <span>40.0h cap</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Account & Settings Menu -->
+      <div class="settings-menu-card">
+        <div class="menu-kicker">ACCOUNT & SETTINGS</div>
+
+        <div class="menu-item" onclick="openPersonalInfoModal()">
+          <div class="menu-icon-box">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+          </div>
+          <div class="menu-content">
+            <h4>Personal Information</h4>
+            <p id="profileMenuEmail">alex.vance@mit.edu • +1 555-0192</p>
+          </div>
+          <span class="menu-arrow">›</span>
+        </div>
+
+        <div class="menu-item" onclick="openNotificationsSettings()">
+          <div class="menu-icon-box">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+          </div>
+          <div class="menu-content">
+            <h4>Notification Channels</h4>
+            <p>SMS Ticket Delivery • Push Alerts</p>
+          </div>
+          <span class="menu-arrow">›</span>
+        </div>
+
+        <div class="menu-item" onclick="openDefaultStationModal()">
+          <div class="menu-icon-box">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+          </div>
+          <div class="menu-content">
+            <h4>Default Workstation</h4>
+            <p class="text-yellow-dark font-medium">Compute Lab / Dual Display (Desk #14)</p>
+          </div>
+          <span class="menu-arrow">›</span>
+        </div>
+
+        <div class="menu-item" onclick="openSecuritySettings()">
+          <div class="menu-icon-box">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+          </div>
+          <div class="menu-content">
+            <h4>Security & 2FA <span class="green-dot">●</span></h4>
+            <p>Enabled via Authenticator App</p>
+          </div>
+          <span class="menu-arrow">›</span>
+        </div>
+
+        <div class="menu-item" onclick="downloadUsageReport()">
+          <div class="menu-icon-box">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+          </div>
+          <div class="menu-content">
+            <h4>Monthly Usage Report</h4>
+            <p>October 2024 Audit (.PDF, 240 KB)</p>
+          </div>
+          <span class="menu-arrow">↗</span>
+        </div>
+      </div>
+
+      <!-- Action Buttons -->
+      <div class="profile-actions-stack">
+        <button class="btn btn-secondary w-full" onclick="openCampusModal()">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 3v18"/><path d="M15 9h6"/></svg>
+          Switch Campus Profile
+        </button>
+
+        <button class="btn btn-danger-soft w-full" onclick="handleLogout()">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+          Log Out of Device
+        </button>
+      </div>
+
+      <!-- Version Stamp -->
+      <div class="profile-footer-stamp">
+        <div>☁ IAC Mobile v2.4.1 (Build 890)</div>
+        <p>Connected to FaciliQ Cloud • Zone US-East-1</p>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- ==================== BOTTOM TAB BAR ==================== -->
+  <nav class="bottom-tab-bar">
+    <button class="tab-item active" id="tabNavHome" onclick="switchTab('home')">
+      <div class="tab-icon-wrap">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+      </div>
+      <span>Home</span>
+    </button>
+
+    <button class="tab-item" id="tabNavCheckin" onclick="switchTab('checkin')">
+      <div class="tab-icon-wrap">
+        <span class="active-badge-pill" id="navCheckinBadge">Active</span>
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M7 8h10"/><path d="M7 12h10"/><circle cx="12" cy="16" r="1"/></svg>
+      </div>
+      <span>Check-In</span>
+    </button>
+
+    <button class="tab-item" id="tabNavBookings" onclick="switchTab('bookings')">
+      <div class="tab-icon-wrap">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+      </div>
+      <span>Bookings</span>
+    </button>
+
+    <button class="tab-item" id="tabNavIssues" onclick="switchTab('issues')">
+      <div class="tab-icon-wrap">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>
+      </div>
+      <span>Issues</span>
+    </button>
+
+    <button class="tab-item" id="tabNavProfile" onclick="switchTab('profile')">
+      <div class="tab-icon-wrap">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+      </div>
+      <span>Profile</span>
+    </button>
+  </nav>
+
+</div>
+
+<!-- ==================== MODALS ==================== -->
+
+<!-- 1. STAGE 1: NEW BOOKING REQUEST MODAL -->
+<div class="modal-backdrop" id="newBookingModal">
+  <div class="modal-sheet">
+    <div class="modal-header">
+      <div>
+        <h3 class="modal-title">New Room & Station Booking</h3>
+        <p class="modal-sub">Initial reservation request</p>
+      </div>
+      <button class="modal-close-btn" onclick="closeModal('newBookingModal')">✕</button>
+    </div>
+    <form id="bookingRequestForm" onsubmit="handleNewBookingSubmit(event)">
+      <div class="modal-body">
+        <div class="form-field">
+          <label>Facility / Room <span>*</span></label>
+          <select id="bReqRoom" class="form-select" required>
+            <option value="3|Compute Lab|Conference Room 1">Room 3 Compute Lab (Rig 03 · Dual 4K + RTX 4090)</option>
+            <option value="1|Conf Suite|Seminar Room 1">Room 1 Conf Suite (Seminar & Team Sync · 25 pax)</option>
+            <option value="2|Training Lab|Training Lab">Room 2 Training Lab (18 Workstations)</option>
+            <option value="4|Meeting Room|Seminar Room 2">Room 4 Executive Briefing (12 pax)</option>
           </select>
-          <textarea id="issueDescInput" class="input-field" rows="2" placeholder="Describe the issue..."></textarea>
-          <button class="checkin-btn" style="width:100%; justify-content:center; margin-top:8px;" onclick="submitCustomIssue()">Post Report</button>
         </div>
 
-        <div class="sec-title" style="margin-bottom:10px; font-size:13px;">Community Reports</div>
-        <div id="issuesList"></div>
-      </div>
+        <div class="form-grid-2">
+          <div class="form-field">
+            <label>Reservation Date <span>*</span></label>
+            <input type="date" id="bReqDate" required>
+          </div>
+          <div class="form-field">
+            <label>Arrival Time <span>*</span></label>
+            <input type="time" id="bReqTime" value="14:00" required>
+          </div>
+        </div>
 
-    </div>
+        <div class="form-field">
+          <label>Program / Event Title <span>*</span></label>
+          <input type="text" id="bReqProgram" placeholder="e.g. Annual Tech Summit" required>
+        </div>
 
-    <!-- Report Issue Confirmation Modal (Req 1) -->
-    <div id="reportConfirmModal" class="hidden" style="position:absolute; inset:0; background:rgba(10,19,15,0.85); backdrop-filter:blur(4px); z-index:999; display:flex; align-items:center; justify-content:center; padding:20px;">
-      <div style="background:var(--ink-3); border:1px solid #3A5246; border-radius:20px; padding:20px; width:100%; max-width:320px; text-align:center; box-shadow:0 15px 30px rgba(0,0,0,0.6);" class="fadein">
-        <div style="font-size:32px; margin-bottom:8px;">⚠️</div>
-        <div style="font-family:'Space Grotesk',sans-serif; font-weight:700; font-size:16px; color:var(--ticket); margin-bottom:8px;">Confirm Issue Report</div>
-        <div style="font-size:13px; color:#D0D7D3; margin-bottom:12px; line-height:1.4;">Are you sure you want to report this issue?</div>
-        <div id="reportConfirmPreview" style="background:var(--ink); border:1px solid #2C4238; border-radius:10px; padding:10px; font-size:11px; color:var(--marigold); margin-bottom:16px; text-align:left; max-height:80px; overflow-y:auto; word-break:break-word;"></div>
-        <div style="display:flex; gap:10px;">
-          <button onclick="closeReportConfirmModal()" style="flex:1; background:transparent; border:1px solid #3A5246; color:var(--graphite); padding:10px; border-radius:12px; font-weight:600; font-family:'Space Grotesk',sans-serif; cursor:pointer;">No</button>
-          <button onclick="executeReportSubmission()" style="flex:1; background:var(--signal); color:#04342C; border:none; padding:10px; border-radius:12px; font-weight:700; font-family:'Space Grotesk',sans-serif; cursor:pointer;">Yes</button>
+        <div class="form-field">
+          <label>Brief Purpose / Notes</label>
+          <textarea id="bReqNotes" rows="2" placeholder="Describe the goal of the workstation or room booking..."></textarea>
         </div>
       </div>
-    </div>
+      <div class="modal-footer">
+        <button type="submit" class="btn btn-yellow w-full" id="btnSubmitBookingReq">
+          Submit Booking Request
+        </button>
+      </div>
+    </form>
+  </div>
+</div>
 
-    <!-- BOTTOM NAVBAR -->
-    <div class="navbar">
-      <div class="navitem active" data-tab="home" onclick="showTab('home')"><div class="ic">⌂</div><div class="l">home</div></div>
-      <div class="navitem" data-tab="history" onclick="showTab('history')"><div class="ic">📜</div><div class="l">history</div></div>
-      <div class="navitem" data-tab="book" onclick="showTab('book')"><div class="ic">🗓</div><div class="l">book</div></div>
-      <div class="navitem" data-tab="board" onclick="showTab('board')"><div class="ic">📢</div><div class="l">Announcements</div></div>
-      <div class="navitem" data-tab="rank" onclick="showTab('rank')"><div class="ic">🏆</div><div class="l">rank</div></div>
-      <div class="navitem" data-tab="report" onclick="showTab('report')"><div class="ic">⚑</div><div class="l">report</div></div>
+<!-- 2. STAGE 2: COMPLETE EVENT DETAILS MODAL (FOR APPROVED BOOKINGS) -->
+<div class="modal-backdrop" id="eventDetailsModal">
+  <div class="modal-sheet">
+    <div class="modal-header">
+      <div>
+        <h3 class="modal-title">Complete Event Details</h3>
+        <p class="modal-sub" id="eventModalSub">Step 2 • Approved Booking</p>
+      </div>
+      <button class="modal-close-btn" onclick="closeModal('eventDetailsModal')">✕</button>
+    </div>
+    <form id="eventDetailsForm" onsubmit="handleEventDetailsSubmit(event)">
+      <input type="hidden" id="eventBookingId">
+      <div class="modal-body">
+        <div class="form-kicker-title">Event Information</div>
+        <div class="form-field">
+          <label>Program / Event Name <span>*</span></label>
+          <input type="text" id="evProgramName" required>
+        </div>
+
+        <div class="form-grid-2">
+          <div class="form-field">
+            <label>Event Type <span>*</span></label>
+            <select id="evEventType" class="form-select" required>
+              <option value="workshop">Workshop</option>
+              <option value="teaching">Teaching</option>
+              <option value="meetings">Meetings</option>
+              <option value="v.conference">Virtual Conference</option>
+              <option value="discussion">Discussion</option>
+              <option value="l.institution">Institutional</option>
+              <option value="it training">IT Training</option>
+              <option value="project">Project</option>
+            </select>
+          </div>
+          <div class="form-field">
+            <label>Category <span>*</span></label>
+            <select id="evCategory" class="form-select" required>
+              <option value="programming">Programming</option>
+              <option value="data science">Data Science</option>
+              <option value="networking">Networking</option>
+              <option value="robotics">Robotics</option>
+              <option value="drone">Drone</option>
+              <option value="iot">IoT</option>
+              <option value="ai">AI</option>
+              <option value="b.computing">Business Computing</option>
+              <option value="others">Others</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="form-kicker-title">Schedule & People</div>
+        <div class="form-grid-2">
+          <div class="form-field">
+            <label>Start Date <span>*</span></label>
+            <input type="date" id="evStartDate" required>
+          </div>
+          <div class="form-field">
+            <label>End Date <span>*</span></label>
+            <input type="date" id="evEndDate" required>
+          </div>
+        </div>
+
+        <div class="form-field">
+          <label>Event Organizer <span>*</span></label>
+          <input type="text" id="evOrganizer" placeholder="e.g. Department of Computer Science" required>
+        </div>
+
+        <div class="form-field">
+          <label>Presenter / Facilitator <span>*</span></label>
+          <input type="text" id="evPresenter" placeholder="e.g. Dr. Kwame Mensah" required>
+        </div>
+
+        <div class="form-grid-2">
+          <div class="form-field">
+            <label>No. of Participants <span>*</span></label>
+            <input type="number" id="evParticipants" min="1" value="20" required>
+          </div>
+          <div class="form-field">
+            <label>Beneficiaries <span>*</span></label>
+            <select id="evBeneficiaries" class="form-select" required>
+              <option value="students">Students</option>
+              <option value="business">Business</option>
+              <option value="government officials">Government Officials</option>
+              <option value="senior citizens">Senior Citizens</option>
+              <option value="local residents">Local Residents</option>
+              <option value="others">Others</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="form-kicker-title">Description & Payment</div>
+        <div class="form-field">
+          <label>Detailed Description <span>*</span></label>
+          <textarea id="evDescription" rows="3" placeholder="Outline of activities, room setup requirements..." required></textarea>
+        </div>
+
+        <div class="form-field">
+          <label>Payment Status</label>
+          <select id="evPaymentStatus" class="form-select">
+            <option value="Paid">Paid</option>
+            <option value="Unpaid">Unpaid</option>
+            <option value="Partially Paid">Partially Paid</option>
+          </select>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="submit" class="btn btn-yellow w-full" id="btnSubmitEventDetails">
+          Save & Finalize Event Record
+        </button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- 3. BOOKING DETAIL MODAL -->
+<div class="modal-backdrop" id="bookingDetailModal">
+  <div class="modal-sheet">
+    <div class="modal-header">
+      <div>
+        <h3 class="modal-title">Booking Details</h3>
+        <p class="modal-sub" id="detailBookingId">BK-2026-0012</p>
+      </div>
+      <button class="modal-close-btn" onclick="closeModal('bookingDetailModal')">✕</button>
+    </div>
+    <div class="modal-body" id="bookingDetailBody">
+      <!-- Rendered dynamically -->
+    </div>
+    <div class="modal-footer" id="bookingDetailFooter">
+      <!-- Action button rendered dynamically -->
     </div>
   </div>
 </div>
 
-<script>
-// Global user identity & system state
-let mobileUserId = localStorage.getItem('iac_mobile_user_id') || '';
-let mobileUserName = localStorage.getItem('iac_mobile_user_name') || 'Mobile Member';
-let mobileUserEmail = localStorage.getItem('iac_mobile_user_email') || '';
-let mobileUserPhone = localStorage.getItem('iac_mobile_user_phone') || '';
-let mobileUserIdNumber = localStorage.getItem('iac_mobile_user_id_num') || '';
-
-let streak = 0;
-let longestStreak = 0;
-let totalCheckins = 0;
-let currentTicketId = null;
-let pollTimer = null;
-let liveAnnouncements = [];
-let liveIssues = [];
-let rawHistoryData = [];
-let activeTodayTicket = null;
-
-function showToast(msg) {
-  const toast = document.getElementById('toast');
-  toast.textContent = msg;
-  toast.style.display = 'block';
-  setTimeout(() => { toast.style.display = 'none'; }, 4000);
-}
-
-// AUTHENTICATED FETCH WRAPPER
-function getAuthHeader() {
-  const token = localStorage.getItem('iac_mobile_access_token');
-  return token ? { 'Authorization': `Bearer ${token}` } : {};
-}
-
-async function authFetch(url, options = {}) {
-  options.headers = {
-    ...options.headers,
-    ...getAuthHeader(),
-  };
-  let res = await fetch(url, options);
-
-  if (res.status === 401) {
-    const refreshToken = localStorage.getItem('iac_mobile_refresh_token');
-    if (refreshToken) {
-      try {
-        const refreshRes = await fetch('/api/iac-mobile/auth/refresh', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ refreshToken })
-        });
-        if (refreshRes.ok) {
-          const refreshData = await refreshRes.json();
-          localStorage.setItem('iac_mobile_access_token', refreshData.accessToken);
-          options.headers['Authorization'] = `Bearer ${refreshData.accessToken}`;
-          res = await fetch(url, options);
-        } else {
-          handleLogout();
-        }
-      } catch (err) {
-        handleLogout();
-      }
-    } else {
-      handleLogout();
-    }
-  }
-  return res;
-}
-
-async function checkAuthAndInit() {
-  const token = localStorage.getItem('iac_mobile_access_token');
-  if (!token) {
-    window.location.href = 'login.html';
-    return;
-  }
-
-  try {
-    const res = await fetch('/api/iac-mobile/auth/verify', {
-      headers: { 'Authorization': `Bearer ${token}` }
-    });
-
-    if (!res.ok) {
-      const refreshToken = localStorage.getItem('iac_mobile_refresh_token');
-      if (refreshToken) {
-        const refRes = await fetch('/api/iac-mobile/auth/refresh', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ refreshToken })
-        });
-        if (refRes.ok) {
-          const refData = await refRes.json();
-          localStorage.setItem('iac_mobile_access_token', refData.accessToken);
-        } else {
-          window.location.href = 'login.html';
-          return;
-        }
-      } else {
-        window.location.href = 'login.html';
-        return;
-      }
-    } else {
-      const data = await res.json();
-      if (data.user) {
-        mobileUserId = data.user.mobileUserId;
-        mobileUserName = data.user.name;
-        mobileUserEmail = data.user.email;
-        mobileUserPhone = data.user.phoneNumber || localStorage.getItem('iac_mobile_user_phone') || '';
-        mobileUserIdNumber = data.user.studentId || localStorage.getItem('iac_mobile_user_id_num') || '';
-        localStorage.setItem('iac_mobile_user_id', mobileUserId);
-        localStorage.setItem('iac_mobile_user_name', mobileUserName);
-        localStorage.setItem('iac_mobile_user_email', mobileUserEmail);
-        localStorage.setItem('iac_mobile_user_phone', mobileUserPhone);
-        localStorage.setItem('iac_mobile_user_id_num', mobileUserIdNumber);
-      }
-    }
-  } catch (e) {
-    console.warn('Auth verify check error:', e);
-  }
-
-  updateUserBadge();
-  fetchUserProfile();
-  checkTodayCheckinStatus();
-  loadAnnouncements();
-  loadLeaderboard('lbPreview', 3);
-  loadIssues();
-}
-
-function updateUserBadge() {
-  const nameEl = document.getElementById('userNameDisplay');
-  const emailEl = document.getElementById('userEmailDisplay');
-  const initialsEl = document.getElementById('userInitials');
-  if (nameEl) nameEl.textContent = mobileUserName;
-  if (emailEl) {
-    let detailStr = mobileUserEmail;
-    if (mobileUserIdNumber) detailStr += ` • ID: ${mobileUserIdNumber}`;
-    if (mobileUserPhone) detailStr += ` • ${mobileUserPhone}`;
-    emailEl.textContent = detailStr;
-  }
-  if (initialsEl) {
-    const initials = mobileUserName.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2) || 'ME';
-    initialsEl.textContent = initials;
-  }
-}
-
-async function handleLogout() {
-  stopTicketPolling();
-  const token = localStorage.getItem('iac_mobile_access_token');
-  if (token) {
-    try {
-      await fetch('/api/iac-mobile/auth/logout', {
-        method: 'POST',
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-    } catch(e) {}
-  }
-  localStorage.removeItem('iac_mobile_access_token');
-  localStorage.removeItem('iac_mobile_refresh_token');
-  window.location.href = 'login.html';
-}
-
-// Today's date pill
-const now = new Date();
-document.getElementById('today').textContent = now.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
-document.getElementById('bookingDateInput').value = now.toISOString().split('T')[0];
-
-function renderHoles(){
-  const wrap = document.getElementById('holesRow');
-  if (!wrap) return;
-  wrap.innerHTML='';
-  const total = 21;
-  for(let i=0;i<total;i++){
-    const d = document.createElement('div');
-    d.className = 'hole' + (i < streak ? '' : ' empty');
-    wrap.appendChild(d);
-  }
-}
-
-// Fetch Profile & Streak
-async function fetchUserProfile() {
-  if (!mobileUserId) return;
-  try {
-    const res = await authFetch(`/api/iac-mobile/user-profile/${mobileUserId}`);
-    if (res.ok) {
-      const data = await res.json();
-      streak = data.streak || 0;
-      longestStreak = data.longestStreak || streak;
-      totalCheckins = data.totalCheckins || 0;
-      document.getElementById('streakN').textContent = streak;
-      renderHoles();
-      updateMilestones();
-    }
-  } catch(e) { console.warn('Profile fetch error:', e); }
-}
-
-function updateMilestones() {
-  const setM = (id, target) => {
-    const el = document.getElementById(id);
-    if (!el) return;
-    if (streak >= target) {
-      el.style.opacity = '1';
-      el.style.borderColor = 'var(--signal)';
-    } else {
-      el.style.opacity = '0.4';
-      el.style.borderColor = '#2C4238';
-    }
-  };
-  setM('mSpark', 3);
-  setM('mFire', 7);
-  setM('mEmber', 14);
-  setM('mFlame', 30);
-}
-
-// Check Today's Checkin Status (Req 1: Duplicate Prevention & UI Update)
-async function checkTodayCheckinStatus() {
-  if (!mobileUserId) return;
-  try {
-    const res = await authFetch(`/api/iac-mobile/checkin-tickets/today/${mobileUserId}`);
-    if (res.ok) {
-      const data = await res.json();
-      const banner = document.getElementById('checkinStatusBanner');
-      const btn = document.getElementById('checkinBtn');
-
-      if (data.checkedIn && data.ticket) {
-        activeTodayTicket = data.ticket;
-        banner.classList.remove('hidden');
-        document.getElementById('bannerTicketCode').textContent = `Ticket ID: ${data.ticket.ticketCode} (${data.ticket.status.toUpperCase()})`;
-
-        // Disable Check-In button with clear Duplicate Notice
-        btn.disabled = true;
-        btn.innerHTML = '<i>✓</i> Checked In Today';
-        btn.onclick = () => showToast('You are already checked in for today.');
-
-        if (data.ticket.status === 'pending') {
-          showPendingVerificationPanel(data.ticket);
-          startTicketPolling(data.ticket._id);
-        } else if (data.ticket.status === 'confirmed') {
-          showConfirmedVerificationPanel(data.ticket);
-        }
-      } else {
-        activeTodayTicket = null;
-        banner.classList.add('hidden');
-        btn.disabled = false;
-        btn.innerHTML = '<i>▣</i> Check In';
-        btn.onclick = startCheckin;
-      }
-    }
-  } catch(e) { console.warn('Today checkin check error:', e); }
-}
-
-function showPendingVerificationPanel(ticket) {
-  document.getElementById('passFoot').classList.add('hidden');
-  const panel = document.getElementById('verifyPanel');
-  panel.classList.remove('hidden');
-  panel.innerHTML = `<div class="verify-panel fadein">
-      <div class="verify-top"><span class="verify-label">Your Ticket ID</span></div>
-      <div class="ticket-id">${ticket.ticketCode}</div>
-      <div class="verify-status" id="verifyStatus">
-        <span class="pulse-dot"></span> Waiting for admin approval...
-      </div>
-    </div>`;
-}
-
-function showConfirmedVerificationPanel(ticket) {
-  document.getElementById('passFoot').classList.add('hidden');
-  const panel = document.getElementById('verifyPanel');
-  panel.classList.remove('hidden');
-  panel.innerHTML = `<div class="verify-panel fadein">
-      <div class="verify-top"><span class="verify-label">Active Pass Ticket</span></div>
-      <div class="ticket-id">${ticket.ticketCode}</div>
-      <div class="verify-status confirmed" id="verifyStatus">
-        <span class="pulse-dot"></span> Verified by Admin — Checked into Lounge!
-      </div>
-      <button class="checkout-btn" style="margin-top:8px; width:100%; justify-content:center;" onclick="checkoutActiveTicket()">Check Out Now</button>
-    </div>`;
-}
-
-// Real-Time Admin Approval Polling Mechanism (Req 2)
-function startTicketPolling(ticketId) {
-  stopTicketPolling();
-  currentTicketId = ticketId;
-  pollTimer = setInterval(async () => {
-    if (!currentTicketId) return;
-    try {
-      const res = await authFetch(`/api/iac-mobile/checkin-tickets/${currentTicketId}`);
-      if (res.ok) {
-        const ticket = await res.json();
-        if (ticket.status === 'confirmed') {
-          stopTicketPolling();
-          showToast('🎉 Your Check-In was Approved by Admin!');
-          showConfirmedVerificationPanel(ticket);
-          fetchUserProfile();
-          triggerConfetti();
-          checkTodayCheckinStatus();
-        } else if (ticket.status === 'declined') {
-          stopTicketPolling();
-          showToast('Check-in request was declined.');
-          const status = document.getElementById('verifyStatus');
-          if (status) {
-            status.className = 'verify-status declined';
-            status.innerHTML = `<span class="pulse-dot"></span> Request Declined by Staff`;
-          }
-          setTimeout(() => {
-            document.getElementById('verifyPanel').classList.add('hidden');
-            document.getElementById('passFoot').classList.remove('hidden');
-            checkTodayCheckinStatus();
-          }, 4000);
-        } else if (ticket.status === 'checked_out' || ticket.status === 'expired') {
-          stopTicketPolling();
-          checkTodayCheckinStatus();
-        }
-      }
-    } catch(e) { console.warn('Poll status error:', e); }
-  }, 3000);
-}
-
-function stopTicketPolling() {
-  if (pollTimer) {
-    clearInterval(pollTimer);
-    pollTimer = null;
-  }
-}
-
-// User Check-Out Action
-async function checkoutActiveTicket() {
-  if (!activeTodayTicket && !currentTicketId) return;
-  const targetId = activeTodayTicket ? activeTodayTicket._id : currentTicketId;
-  try {
-    const res = await authFetch(`/api/iac-mobile/checkin-tickets/${targetId}/checkout`, {
-      method: 'POST'
-    });
-    if (res.ok) {
-      showToast('Checked out successfully!');
-      stopTicketPolling();
-      document.getElementById('verifyPanel').classList.add('hidden');
-      document.getElementById('passFoot').classList.remove('hidden');
-      checkTodayCheckinStatus();
-      fetchUserProfile();
-    }
-  } catch(e) { showToast('Checkout error'); }
-}
-
-// START CHECK-IN TICKETING
-async function startCheckin(){
-  const btn = document.getElementById('checkinBtn');
-  btn.disabled = true;
-  btn.textContent = 'Generating...';
-
-  try {
-    const res = await authFetch('/api/iac-mobile/checkin-tickets', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        mobileUserId,
-        mobileUserName,
-        mobileUserEmail,
-        mobileUserPhone: mobileUserPhone || localStorage.getItem('iac_mobile_user_phone') || '',
-        mobileUserIdNumber: mobileUserIdNumber || localStorage.getItem('iac_mobile_user_id_num') || ''
-      })
-    });
-
-    const ticket = await res.json();
-    if (!res.ok) {
-      if (ticket.alreadyCheckedIn) {
-        showToast('You are already checked in for today.');
-        checkTodayCheckinStatus();
-        return;
-      }
-      throw new Error(ticket.error || 'Failed to create ticket');
-    }
-
-    currentTicketId = ticket._id;
-    activeTodayTicket = ticket;
-
-    showPendingVerificationPanel(ticket);
-    showToast(`Ticket ${ticket.ticketCode} sent to Admin Dashboard!`);
-
-    // Start real-time polling
-    startTicketPolling(ticket._id);
-
-  } catch(e) {
-    showToast(e.message);
-    btn.disabled = false;
-    btn.textContent = 'Check In';
-  }
-}
-
-// Slider logic for Mobile Home Page Carousel Slider (Req 7)
-const DEFAULT_SLIDE_IMG = 'https://images.unsplash.com/photo-1497215728101-856f4ea42174?w=600&q=60&auto=format&fit=crop';
-const sliderState = {};
-
-async function loadAnnouncements() {
-  try {
-    const res = await authFetch('/api/iac-mobile/announcements');
-    if (res.ok) {
-      liveAnnouncements = await res.json();
-    }
-  } catch(e) { console.warn(e); }
-
-  if (!liveAnnouncements || liveAnnouncements.length === 0) {
-    liveAnnouncements = [
-      {category:'pinned', title:'Korean class · beginner track', description:'Tue & Thu, 5:00pm · Training lab', imageUrl:'https://images.unsplash.com/photo-1546410531-bb4caa6b424d?w=600&q=60&auto=format&fit=crop', createdAt: new Date()},
-      {category:'event', title:'Founders coffee morning', description:'Sat, 9:00am · Lounge', imageUrl:'https://images.unsplash.com/photo-1447933601403-0c6688de566e?w=600&q=60&auto=format&fit=crop', createdAt: new Date()},
-      {category:'notice', title:'Maintenance notice', description:'Lounge closed 6–8am for cleaning', createdAt: new Date()},
-    ];
-  }
-
-  renderSlider('sliderPreview');
-  renderAnnouncementsList();
-}
-
-function renderSlider(target){
-  const el = document.getElementById(target);
-  if (!el) return;
-  el.innerHTML = '';
-  sliderState[target] = 0;
-
-  const track = document.createElement('div');
-  track.className = 'slider-track';
-  liveAnnouncements.forEach(a=>{
-    const slide = document.createElement('div');
-    slide.className = 'slide';
-    const cat = a.category || 'notice';
-    slide.innerHTML = `<img class="slide-img" src="${a.imageUrl || DEFAULT_SLIDE_IMG}" alt="">
-      <div class="slide-overlay">
-        <span class="slide-badge ${cat}">${cat}</span>
-        <div class="slide-h">${a.title}</div>
-        <div class="slide-d">${a.description}</div>
-      </div>`;
-    track.appendChild(slide);
-  });
-  el.appendChild(track);
-
-  const prev = document.createElement('button');
-  prev.className = 'slider-arrow prev'; prev.textContent = '‹';
-  prev.onclick = ()=>moveSlider(target, -1);
-  const next = document.createElement('button');
-  next.className = 'slider-arrow next'; next.textContent = '›';
-  next.onclick = ()=>moveSlider(target, 1);
-  el.appendChild(prev); el.appendChild(next);
-
-  const dots = document.createElement('div');
-  dots.className = 'dots';
-  liveAnnouncements.forEach((_,i)=>{
-    const d = document.createElement('div');
-    d.className = 'dot' + (i===0 ? ' active' : '');
-    d.onclick = ()=>setSlider(target, i);
-    dots.appendChild(d);
-  });
-  el.appendChild(dots);
-}
-
-function setSlider(target, i){
-  const count = liveAnnouncements.length;
-  if (count === 0) return;
-  sliderState[target] = (i + count) % count;
-  const el = document.getElementById(target);
-  if (!el) return;
-  const track = el.querySelector('.slider-track');
-  if (track) track.style.transform = `translateX(-${sliderState[target]*100}%)`;
-  el.querySelectorAll('.dot').forEach((d,idx)=>d.classList.toggle('active', idx===sliderState[target]));
-}
-
-function moveSlider(target, dir){ setSlider(target, (sliderState[target] || 0) + dir); }
-
-setInterval(()=>{
-  Object.keys(sliderState).forEach(target=>moveSlider(target, 1));
-}, 4500);
-
-// Redesigned Announcement Page List View (Req 6: Clean Vertical List)
-function renderAnnouncementsList() {
-  const el = document.getElementById('announcementsList');
-  if (!el) return;
-  el.innerHTML = '';
-
-  if (liveAnnouncements.length === 0) {
-    el.innerHTML = '<div style="font-size:12px; color:var(--graphite); text-align:center; padding:20px;">No announcements posted yet.</div>';
-    return;
-  }
-
-  liveAnnouncements.forEach(a => {
-    const card = document.createElement('div');
-    card.className = 'announcement-card fadein';
-    const cat = a.category || 'notice';
-    const dateStr = a.createdAt ? new Date(a.createdAt).toLocaleDateString([], {month:'short', day:'numeric', year:'numeric'}) : 'Today';
-
-    card.innerHTML = `
-      <div class="header">
-        <span class="slide-badge ${cat}">${cat}</span>
-        <span class="date">${dateStr}</span>
-      </div>
-      <div class="title">${a.title}</div>
-      <div class="desc">${a.description}</div>
-      ${a.imageUrl ? `<img src="${a.imageUrl}" alt="${a.title}">` : ''}
-    `;
-    el.appendChild(card);
-  });
-}
-
-// Booking History Portal (Req 3)
-async function loadHistoryPortal() {
-  const el = document.getElementById('historyList');
-  if (!el) return;
-  el.innerHTML = '<div style="text-align:center; padding:20px; color:var(--graphite); font-size:12px;">Loading history...</div>';
-
-  try {
-    const res = await authFetch(`/api/iac-mobile/history/${mobileUserId}`);
-    if (res.ok) {
-      rawHistoryData = await res.json();
-      renderHistoryItems(rawHistoryData);
-    } else {
-      el.innerHTML = '<div style="text-align:center; padding:20px; color:var(--graphite); font-size:12px;">Failed to load history records.</div>';
-    }
-  } catch(e) {
-    el.innerHTML = '<div style="text-align:center; padding:20px; color:var(--graphite); font-size:12px;">Error fetching history.</div>';
-  }
-}
-
-function filterHistory(filterType) {
-  if (!rawHistoryData) return;
-  if (filterType === 'all') {
-    renderHistoryItems(rawHistoryData);
-  } else {
-    renderHistoryItems(rawHistoryData.filter(item => item.type === filterType));
-  }
-}
-
-function renderHistoryItems(items) {
-  const el = document.getElementById('historyList');
-  if (!el) return;
-  el.innerHTML = '';
-
-  if (!items || items.length === 0) {
-    el.innerHTML = '<div style="text-align:center; padding:20px; color:var(--graphite); font-size:12px;">No history records found.</div>';
-    return;
-  }
-
-  items.forEach(item => {
-    const card = document.createElement('div');
-    card.className = 'history-card fadein';
-
-    const statusClass = item.status ? item.status.toLowerCase() : 'pending';
-    const formattedDate = new Date(item.date).toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' });
-
-    card.innerHTML = `
-      <div class="history-header">
-        <div>
-          <div class="history-title">${item.title}</div>
-          <div class="history-code">${item.ticketCode}</div>
-        </div>
-        <span class="status-pill ${statusClass}">${item.statusDisplay || item.status}</span>
-      </div>
-      <div style="font-size:11px; color:#D0D7D3; margin-top:4px;">${item.details}</div>
-      <div class="history-details">
-        <span>📅 ${formattedDate}</span>
-        <span>🕒 Check-In: ${item.checkinTime}</span>
-        ${item.checkoutTime ? `<span>🚪 Check-Out: ${item.checkoutTime}</span>` : ''}
-      </div>
-    `;
-    el.appendChild(card);
-  });
-}
-
-// Rankings / Leaderboard System (Req 5)
-async function loadLeaderboard(target, limit) {
-  const el = document.getElementById(target);
-  if (!el) return;
-  el.innerHTML = '';
-
-  try {
-    const res = await authFetch('/api/iac-mobile/rankings');
-    let users = [];
-    if (res.ok) {
-      users = await res.json();
-    }
-
-    if (!users || users.length === 0) {
-      users = [
-        { mobileUserId, name: mobileUserName, streak: streak, longestStreak: longestStreak, totalCheckins: totalCheckins, rank: 1 }
-      ];
-    }
-
-    // Highlight logged in user
-    const myEntry = users.find(u => u.mobileUserId === mobileUserId) || { rank: 1, streak: streak, totalCheckins: totalCheckins };
-    const myRankEl = document.getElementById('myRankDisplay');
-    const myStreakEl = document.getElementById('myStreakDisplay');
-    const myTotalEl = document.getElementById('myTotalCheckinsDisplay');
-    if (myRankEl) myRankEl.textContent = `Rank #${myEntry.rank || 1}`;
-    if (myStreakEl) myStreakEl.textContent = `${myEntry.streak || streak}d streak`;
-    if (myTotalEl) myTotalEl.textContent = `${myEntry.totalCheckins || totalCheckins} total check-ins`;
-
-    const displayList = limit ? users.slice(0, limit) : users;
-
-    displayList.forEach((p) => {
-      const isMe = p.mobileUserId === mobileUserId;
-      const row = document.createElement('div');
-      row.className = 'lb-row' + (isMe ? ' me' : '');
-
-      let rankDisplay = `#${p.rank}`;
-      if (p.rank === 1) rankDisplay = '🥇';
-      if (p.rank === 2) rankDisplay = '🥈';
-      if (p.rank === 3) rankDisplay = '🥉';
-
-      const initials = p.name ? p.name.split(' ').map(w=>w[0]).join('').toUpperCase().slice(0,2) : 'MB';
-
-      row.innerHTML = `
-        <span class="lb-rank">${rankDisplay}</span>
-        <div class="lb-avatar">${initials}</div>
-        <div class="lb-name">${p.name}${isMe ? ' (You)' : ''}</div>
-        <div style="text-align:right;">
-          <div class="lb-streak">${p.streak}d streak</div>
-          <div style="font-size:9px; color:var(--graphite); font-family:'IBM Plex Mono',monospace;">${p.totalCheckins || 0} checkins</div>
-        </div>
-      `;
-      el.appendChild(row);
-    });
-  } catch(e) { console.warn('Leaderboard error:', e); }
-}
-
-// Issues / Reports
-async function loadIssues(){
-  try {
-    const res = await authFetch(`/api/iac-mobile/issues?mobileUserId=${mobileUserId}`);
-    if (res.ok) {
-      liveIssues = await res.json();
-    }
-  } catch(e) { console.warn(e); }
-
-  const el = document.getElementById('issuesList');
-  if (!el) return;
-  el.innerHTML='';
-
-  if (liveIssues.length === 0) {
-    el.innerHTML = '<div style="font-size:12px; color:var(--graphite); text-align:center; padding:12px;">No issues reported yet.</div>';
-    return;
-  }
-
-  liveIssues.forEach((iss)=>{
-    const div = document.createElement('div');
-    div.className='issue fadein';
-    const netVote = (iss.upvotesCount || 0) - (iss.downvotesCount || 0);
-    const userVote = iss.userVote;
-    const isUp = userVote === 'up';
-    const isDown = userVote === 'down';
-
-    div.innerHTML = `<div class="issue-top">
+<!-- 4. WIFI CREDENTIALS MODAL -->
+<div class="modal-backdrop" id="wifiModal">
+  <div class="modal-sheet">
+    <div class="modal-header">
       <div>
-        <div class="issue-t">${iss.description}</div>
-        <div class="issue-m">${iss.reporterName || 'Anonymous'} · ${new Date(iss.createdAt).toLocaleDateString()}</div>
+        <h3 class="modal-title">Lounge WiFi Credentials</h3>
+        <p class="modal-sub">High-Speed Enterprise WPA3 Network</p>
       </div>
-      <span class="status ${iss.status}">${iss.status}</span>
+      <button class="modal-close-btn" onclick="closeModal('wifiModal')">✕</button>
     </div>
-    <div class="votes">
-      <button class="vbtn ${isUp ? 'active-up' : ''}" onclick="voteIssue('${iss._id}', 'up')">▲ Upvote</button>
-      <span class="vcount">${netVote}</span>
-      <button class="vbtn ${isDown ? 'active-down' : ''}" onclick="voteIssue('${iss._id}', 'down')">▼ Downvote</button>
-    </div>`;
-    el.appendChild(div);
-  });
-}
+    <div class="modal-body">
+      <div class="wifi-box">
+        <div class="wifi-field">
+          <span class="wifi-label">NETWORK (SSID)</span>
+          <div class="wifi-val">
+            <strong id="wifiSsid">IAC-Main-Lounge-5G</strong>
+            <button class="btn-copy" onclick="copyToClipboard('IAC-Main-Lounge-5G')">Copy</button>
+          </div>
+        </div>
+        <div class="wifi-field">
+          <span class="wifi-label">PASSCODE</span>
+          <div class="wifi-val">
+            <code id="wifiPass">ConnectHub@2026#</code>
+            <button class="btn-copy" onclick="copyToClipboard('ConnectHub@2026#')">Copy</button>
+          </div>
+        </div>
+        <div class="wifi-field">
+          <span class="wifi-label">SECURITY</span>
+          <span>WPA3-Enterprise / 802.11ax</span>
+        </div>
+      </div>
+      <div class="wifi-note">
+        💡 Workstations and mobile devices are automatically isolated on VLAN 40 with 1 Gbps symmetrical bandwidth.
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-yellow w-full" onclick="copyToClipboard('ConnectHub@2026#'); closeModal('wifiModal'); showToast('WiFi password copied to clipboard!');">
+        Copy Passcode & Close
+      </button>
+    </div>
+  </div>
+</div>
 
-async function voteIssue(id, direction) {
-  try {
-    const res = await authFetch(`/api/iac-mobile/issues/${id}/vote`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ mobileUserId, direction })
-    });
-    if (res.ok) {
-      loadIssues();
-    }
-  } catch(e) { console.warn(e); }
-}
+<!-- 5. SCAN STATION MODAL -->
+<div class="modal-backdrop" id="scanModal">
+  <div class="modal-sheet">
+    <div class="modal-header">
+      <div>
+        <h3 class="modal-title">Scan Station Beacon</h3>
+        <p class="modal-sub">Instant NFC / QR sync</p>
+      </div>
+      <button class="modal-close-btn" onclick="closeModal('scanModal')">✕</button>
+    </div>
+    <div class="modal-body text-center">
+      <div class="scan-target-box">
+        <div class="scan-reticle"></div>
+        <div class="scan-laser"></div>
+        <p>Align QR sticker on workstation or tap phone on desk sensor</p>
+      </div>
+      <div class="form-field mt-3">
+        <label>Or enter Station ID manually:</label>
+        <div class="flex gap-2">
+          <input type="text" id="manualStationInput" placeholder="e.g. LAB-PC-03" class="uppercase">
+          <button class="btn btn-yellow" onclick="handleManualStationSync()">Sync</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
 
-let pendingReportData = null;
+<!-- 6. CAMPUS SELECTOR MODAL -->
+<div class="modal-backdrop" id="campusModal">
+  <div class="modal-sheet">
+    <div class="modal-header">
+      <h3 class="modal-title">Select Campus Location</h3>
+      <button class="modal-close-btn" onclick="closeModal('campusModal')">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="campus-option-list">
+        <div class="campus-option selected" onclick="selectCampus('MAIN LOUNGE CAMPUS', 'Main Lounge')">
+          <div class="campus-name">MAIN LOUNGE CAMPUS</div>
+          <div class="campus-detail">Main Building • Cluster 01 - 08 • 48 Active Nodes</div>
+          <span class="check-mark">✔</span>
+        </div>
+        <div class="campus-option" onclick="selectCampus('EAST INNOVATION WING', 'Innovation Lab')">
+          <div class="campus-name">EAST INNOVATION WING</div>
+          <div class="campus-detail">Engineering Complex • Room 4 & 5 • 24 Nodes</div>
+        </div>
+        <div class="campus-option" onclick="selectCampus('ADJEI COMPUTING HUB', 'Computing Wing')">
+          <div class="campus-name">ADJEI COMPUTING HUB</div>
+          <div class="campus-detail">Graduate Center • Training Labs • 32 Nodes</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
 
-function flagPreset(text, category) {
-  pendingReportData = { text, category: category || 'General' };
-  const modal = document.getElementById('reportConfirmModal');
-  const preview = document.getElementById('reportConfirmPreview');
-  if (preview) {
-    preview.innerHTML = `<strong>Category:</strong> ${pendingReportData.category}<br/><strong>Description:</strong> ${pendingReportData.text}`;
-  }
-  if (modal) modal.classList.remove('hidden');
-}
+<!-- 7. NOTIFICATIONS DRAWER -->
+<div class="modal-backdrop" id="notifModal">
+  <div class="modal-sheet">
+    <div class="modal-header">
+      <h3 class="modal-title">Notifications</h3>
+      <button class="modal-close-btn" onclick="closeModal('notifModal')">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="notif-list">
+        <div class="notif-item unread">
+          <div class="notif-bullet"></div>
+          <div>
+            <strong>Check-in Pass Active</strong>
+            <p>Your session pass #IAC-8894 is verified and running.</p>
+            <span class="notif-time">10m ago</span>
+          </div>
+        </div>
+        <div class="notif-item">
+          <div class="notif-bullet grey"></div>
+          <div>
+            <strong>Scheduled Maintenance Alert</strong>
+            <p>Tonight at 23:00 UTC for Cluster nodes 12-16.</p>
+            <span class="notif-time">2h ago</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
 
-function closeReportConfirmModal() {
-  pendingReportData = null;
-  const modal = document.getElementById('reportConfirmModal');
-  if (modal) modal.classList.add('hidden');
-}
+<!-- TOAST -->
+<div class="toast-box" id="toastBox">Notification</div>
 
-async function executeReportSubmission() {
-  if (!pendingReportData) return;
-  const { text, category } = pendingReportData;
-  closeReportConfirmModal();
-
-  try {
-    const res = await authFetch('/api/iac-mobile/issues', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        reporterId: mobileUserId,
-        reporterName: mobileUserName,
-        category: category,
-        description: text
-      })
-    });
-    if (res.ok) {
-      showToast('Report submitted to Admin Board!');
-      loadIssues();
-    } else {
-      showToast('Failed to submit report');
-    }
-  } catch(e) {
-    showToast('Error posting report');
-  }
-}
-
-async function submitCustomIssue() {
-  const cat = document.getElementById('issueCatSelect').value;
-  const desc = document.getElementById('issueDescInput').value.trim();
-  if (!desc) {
-    showToast('Please describe the issue');
-    return;
-  }
-  flagPreset(desc, cat);
-  document.getElementById('issueDescInput').value = '';
-}
-
-function showTab(name){
-  stopTicketPolling();
-  ['home','history','book','board','rank','report'].forEach(t=>{
-    const tabEl = document.getElementById('tab-'+t);
-    if (tabEl) tabEl.classList.toggle('hidden', t!==name);
-  });
-  document.querySelectorAll('.navitem').forEach(n=>n.classList.toggle('active', n.dataset.tab===name));
-  const activeEl = document.getElementById('tab-'+name);
-  if (activeEl) activeEl.classList.add('fadein');
-
-  if(name==='home') {
-    checkTodayCheckinStatus();
-    loadLeaderboard('lbPreview', 3);
-  }
-  if(name==='history') loadHistoryPortal();
-  if(name==='board') renderAnnouncementsList();
-  if(name==='rank') loadLeaderboard('lbFull');
-  if(name==='report') loadIssues();
-}
-
-// Redirect / open attendance form
-function openAttendanceForm() {
-  window.location.href = '/attendanceForm/index.html';
-}
-
-function triggerConfetti(){
-  for(let i=0;i<12;i++){
-    const c = document.createElement('div');
-    c.className='confetti';
-    c.style.left = '50%'; c.style.top = '40%';
-    const angle = Math.random()*Math.PI*2, dist = 40+Math.random()*80;
-    c.style.setProperty('--dx', Math.cos(angle)*dist+'px');
-    c.style.setProperty('--dy', Math.sin(angle)*dist+'px');
-    c.style.animation = 'fly .7s ease-out forwards';
-    document.body.appendChild(c);
-    setTimeout(()=>c.remove(), 750);
-  }
-}
-
-// BOOKING ROOM LOGIC
-let selectedRoomName = null;
-let selectedRoomNum = '3';
-
-function pickRoom(el, name, roomNum){
-  document.querySelectorAll('.room-card').forEach(c => c.classList.remove('selected'));
-  el.classList.add('selected');
-  selectedRoomName = name;
-  selectedRoomNum = roomNum;
-
-  document.getElementById('slotsWrap').classList.remove('hidden');
-  document.getElementById('slotRoomName').textContent = name + ' — Reservation Details';
-}
-
-async function confirmBooking(){
-  if(!selectedRoomName){
-    showToast('Please select a facility/room!');
-    return;
-  }
-
-  const dateVal = document.getElementById('bookingDateInput').value;
-  const timeVal = document.getElementById('arrivalTimeInput').value;
-  const programVal = document.getElementById('bookingProgramInput').value.trim() || 'Room Reservation';
-
-  if (!dateVal) {
-    showToast('Please select a booking date');
-    return;
-  }
-  if (!timeVal) {
-    showToast('Please select expected time of arrival');
-    return;
-  }
-
-  // Format 24h timeVal to 12h AM/PM
-  const [h, m] = timeVal.split(':');
-  const hourNum = parseInt(h, 10);
-  const ampm = hourNum >= 12 ? 'PM' : 'AM';
-  const displayHour = hourNum % 12 || 12;
-  const formattedArrival = `${displayHour}:${m} ${ampm}`;
-
-  try {
-    const res = await authFetch('/api/iac-mobile/booking-requests', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        mobileUserId,
-        mobileUserName,
-        contactEmail: mobileUserEmail,
-        roomNumber: selectedRoomNum,
-        roomType: selectedRoomName.toLowerCase().includes('conference') ? 'conference' : 'seminar',
-        requestedDate: dateVal,
-        arrivalTime: formattedArrival,
-        requestedSlot: formattedArrival,
-        programName: programVal
-      })
-    });
-
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.error || 'Failed to submit booking');
-
-    showToast(`Booking for ${selectedRoomName} at ${formattedArrival} submitted!`);
-    showTab('history');
-  } catch(e) {
-    showToast(e.message);
-  }
-}
-
-// Init Page with Auth Verification Check
-checkAuthAndInit();
-</script>
+<script src="/socket.io/socket.io.js"></script>
+<script src="app.js"></script>
 </body>
 </html>

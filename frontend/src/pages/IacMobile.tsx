@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { api } from '../lib/api';
 import {
   Smartphone,
   CheckCircle2,
@@ -30,10 +31,14 @@ interface CheckinTicket {
   mobileUserName: string;
   mobileUserEmail: string;
   ticketCode: string;
-  status: 'pending' | 'confirmed' | 'expired';
+  status: 'pending' | 'confirmed' | 'declined' | 'checked_out' | 'expired';
   requestedAt: string;
   confirmedAt?: string;
   confirmedBy?: string;
+  declinedAt?: string;
+  declinedBy?: string;
+  declinedReason?: string;
+  checkedOutAt?: string;
 }
 
 interface Issue {
@@ -115,6 +120,8 @@ export default function IacMobile() {
   const [tickets, setTickets] = useState<CheckinTicket[]>([]);
   const [ticketFilter, setTicketFilter] = useState<'pending' | 'all'>('pending');
   const [staffNameInput, setStaffNameInput] = useState<string>('Staff Admin');
+  const [decliningTicketId, setDecliningTicketId] = useState<string | null>(null);
+  const [ticketDeclineReason, setTicketDeclineReason] = useState<string>('');
 
   // Booking Requests
   const [bookings, setBookings] = useState<BookingRequest[]>([]);
@@ -190,11 +197,16 @@ export default function IacMobile() {
   const fetchData = useCallback(async (isManual = false) => {
     if (isManual) setLoading(true);
     try {
-      // Checkin Tickets
-      const ticketRes = await fetch('/api/iac-mobile/checkin-tickets');
-      if (ticketRes.ok) {
-        const data: CheckinTicket[] = await ticketRes.json();
-        const ticketList = Array.isArray(data) ? data : [];
+      const [ticketResult, bookingResult, issueResult] = await Promise.allSettled([
+        api.get('/api/iac-mobile/checkin-tickets'),
+        api.get('/api/iac-mobile/booking-requests'),
+        api.get(`/api/iac-mobile/issues?mobileUserId=${simUserId}`),
+      ]);
+
+      if (ticketResult.status === 'fulfilled' && ticketResult.value) {
+        const ticketList: CheckinTicket[] = Array.isArray(ticketResult.value)
+          ? ticketResult.value
+          : [];
 
         if (prevTicketIdsRef.current !== null) {
           ticketList.forEach((t) => {
@@ -212,11 +224,10 @@ export default function IacMobile() {
         setTickets(ticketList);
       }
 
-      // Booking Requests
-      const bookingRes = await fetch('/api/iac-mobile/booking-requests');
-      if (bookingRes.ok) {
-        const data: BookingRequest[] = await bookingRes.json();
-        const bookingList = Array.isArray(data) ? data : [];
+      if (bookingResult.status === 'fulfilled' && bookingResult.value) {
+        const bookingList: BookingRequest[] = Array.isArray(bookingResult.value)
+          ? bookingResult.value
+          : [];
 
         if (prevBookingIdsRef.current !== null) {
           bookingList.forEach((b) => {
@@ -234,11 +245,10 @@ export default function IacMobile() {
         setBookings(bookingList);
       }
 
-      // Issues
-      const issueRes = await fetch(`/api/iac-mobile/issues?mobileUserId=${simUserId}`);
-      if (issueRes.ok) {
-        const data: Issue[] = await issueRes.json();
-        const issueList = Array.isArray(data) ? data : [];
+      if (issueResult.status === 'fulfilled' && issueResult.value) {
+        const issueList: Issue[] = Array.isArray(issueResult.value)
+          ? issueResult.value
+          : [];
 
         if (prevIssueIdsRef.current !== null) {
           issueList.forEach((i) => {
@@ -258,31 +268,36 @@ export default function IacMobile() {
 
       // Announcements & SMTP Config (only fetched on initial load / manual refresh)
       if (isManual || prevTicketIdsRef.current === null) {
-        const [annoRes, smtpRes] = await Promise.all([
-          fetch('/api/iac-mobile/admin/announcements'),
-          fetch('/api/iac-mobile/smtp-config'),
+        const [annoResult, smtpResult] = await Promise.allSettled([
+          api.get('/api/iac-mobile/admin/announcements'),
+          api.get('/api/iac-mobile/smtp-config'),
         ]);
 
-        if (annoRes.ok) {
-          const data = await annoRes.json();
-          setAnnouncements(Array.isArray(data) ? data : []);
+        if (annoResult.status === 'fulfilled' && annoResult.value) {
+          const annoList = Array.isArray(annoResult.value) ? annoResult.value : [];
+          setAnnouncements(annoList);
         }
 
-        if (smtpRes.ok) {
-          const data = await smtpRes.json();
-          setSmtpConfig({
-            host: data.host || 'smtp.gmail.com',
-            port: data.port || 587,
-            secure: data.secure || false,
-            user: data.user || '',
-            pass: data.pass || '',
-            fromEmail: data.fromEmail || '',
-            fromName: data.fromName || 'IAC Mobile System',
-          });
+        if (smtpResult.status === 'fulfilled' && smtpResult.value) {
+          const data = smtpResult.value;
+          if (data && typeof data === 'object') {
+            setSmtpConfig({
+              host: data.host || 'smtp.gmail.com',
+              port: data.port || 587,
+              secure: data.secure || false,
+              user: data.user || '',
+              pass: data.pass || '',
+              fromEmail: data.fromEmail || '',
+              fromName: data.fromName || 'IAC Mobile System',
+            });
+          }
         }
       }
     } catch (err: any) {
-      console.error('Error fetching IAC mobile data:', err);
+      const msg = err?.message || String(err);
+      if (!msg.includes('<!DOCTYPE') && !msg.includes('<body') && !msg.includes('Unexpected token')) {
+        console.warn('Error fetching IAC mobile data:', msg);
+      }
     } finally {
       if (isManual) setLoading(false);
     }
@@ -328,103 +343,83 @@ export default function IacMobile() {
   // Checkin Actions
   const handleConfirmTicket = async (ticketId: string) => {
     try {
-      const res = await fetch(`/api/iac-mobile/checkin-tickets/${ticketId}/confirm`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ staffName: staffNameInput }),
+      await api.post(`/api/iac-mobile/checkin-tickets/${ticketId}/confirm`, {
+        staffName: staffNameInput,
       });
-      const data = await res.json();
-
-      if (!res.ok) {
-        throw new Error(data.error || 'Failed to confirm check-in');
-      }
 
       showAlert('success', 'Check-in ticket confirmed! Added to Lounge records & streak updated.');
       fetchData();
     } catch (err: any) {
-      showAlert('error', err.message);
+      showAlert('error', err.message || 'Failed to confirm check-in');
+    }
+  };
+
+  const handleDeclineTicket = async (ticketId: string) => {
+    try {
+      await api.post(`/api/iac-mobile/checkin-tickets/${ticketId}/decline`, {
+        staffName: staffNameInput,
+        reason: ticketDeclineReason || 'Declined by administrator',
+      });
+
+      showAlert('success', 'Check-in ticket declined.');
+      setDecliningTicketId(null);
+      setTicketDeclineReason('');
+      fetchData();
+    } catch (err: any) {
+      showAlert('error', err.message || 'Failed to decline check-in ticket');
     }
   };
 
   // Booking Actions
   const handleConfirmBooking = async (bookingId: string) => {
     try {
-      const res = await fetch(`/api/iac-mobile/booking-requests/${bookingId}/confirm`, {
-        method: 'POST',
-      });
-      const data = await res.json();
-
-      if (!res.ok) {
-        throw new Error(data.error || 'Failed to confirm booking request');
-      }
+      await api.post(`/api/iac-mobile/booking-requests/${bookingId}/confirm`, {});
 
       showAlert('success', 'Booking approved & added to production calendar! Email dispatched.');
       fetchData();
     } catch (err: any) {
-      showAlert('error', err.message);
+      showAlert('error', err.message || 'Failed to confirm booking request');
     }
   };
 
   const handleRejectBooking = async (bookingId: string) => {
     try {
-      const res = await fetch(`/api/iac-mobile/booking-requests/${bookingId}/reject`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ reason: rejectionReason }),
+      await api.post(`/api/iac-mobile/booking-requests/${bookingId}/reject`, {
+        reason: rejectionReason,
       });
-      const data = await res.json();
-
-      if (!res.ok) {
-        throw new Error(data.error || 'Failed to reject booking request');
-      }
 
       showAlert('success', 'Booking request declined and notification email sent.');
       setRejectingBookingId(null);
       setRejectionReason('');
       fetchData();
     } catch (err: any) {
-      showAlert('error', err.message);
+      showAlert('error', err.message || 'Failed to reject booking request');
     }
   };
 
   // Issue Status Action
   const handleUpdateIssueStatus = async (issueId: string, status: Issue['status']) => {
     try {
-      const res = await fetch(`/api/iac-mobile/issues/${issueId}/status`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status }),
-      });
-      const data = await res.json();
-
-      if (!res.ok) {
-        throw new Error(data.error || 'Failed to update issue status');
-      }
+      await api.patch(`/api/iac-mobile/issues/${issueId}/status`, { status });
 
       showAlert('success', `Issue status updated to ${status}.`);
       fetchData();
     } catch (err: any) {
-      showAlert('error', err.message);
+      showAlert('error', err.message || 'Failed to update issue status');
     }
   };
 
   // Vote Issue Action
   const handleVoteIssue = async (issueId: string, direction: 'up' | 'down') => {
     try {
-      const res = await fetch(`/api/iac-mobile/issues/${issueId}/vote`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ mobileUserId: simUserId, direction }),
+      await api.post(`/api/iac-mobile/issues/${issueId}/vote`, {
+        mobileUserId: simUserId,
+        direction,
       });
-      const data = await res.json();
-
-      if (!res.ok) {
-        throw new Error(data.error || 'Failed to register vote');
-      }
 
       fetchData();
     } catch (err: any) {
-      showAlert('error', err.message);
+      showAlert('error', err.message || 'Failed to register vote');
     }
   };
 
@@ -438,20 +433,10 @@ export default function IacMobile() {
 
     try {
       const isEdit = Boolean(editingAnno._id);
-      const url = isEdit
-        ? `/api/iac-mobile/announcements/${editingAnno._id}`
-        : '/api/iac-mobile/announcements';
-      const method = isEdit ? 'PUT' : 'POST';
-
-      const res = await fetch(url, {
-        method,
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(editingAnno),
-      });
-
-      if (!res.ok) {
-        const errData = await res.json();
-        throw new Error(errData.error || 'Failed to save announcement');
+      if (isEdit) {
+        await api.put(`/api/iac-mobile/announcements/${editingAnno._id}`, editingAnno);
+      } else {
+        await api.post('/api/iac-mobile/announcements', editingAnno);
       }
 
       showAlert(
@@ -462,22 +447,19 @@ export default function IacMobile() {
       setEditingAnno(null);
       fetchData();
     } catch (err: any) {
-      showAlert('error', err.message);
+      showAlert('error', err.message || 'Failed to save announcement');
     }
   };
 
   const handleDeleteAnnouncement = async (annoId: string) => {
     if (!confirm('Are you sure you want to delete this announcement?')) return;
     try {
-      const res = await fetch(`/api/iac-mobile/announcements/${annoId}`, {
-        method: 'DELETE',
-      });
-      if (!res.ok) throw new Error('Failed to delete announcement');
+      await api.delete(`/api/iac-mobile/announcements/${annoId}`);
 
       showAlert('success', 'Announcement removed.');
       fetchData();
     } catch (err: any) {
-      showAlert('error', err.message);
+      showAlert('error', err.message || 'Failed to delete announcement');
     }
   };
 
@@ -485,17 +467,11 @@ export default function IacMobile() {
   const handleSaveSmtp = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      const res = await fetch('/api/iac-mobile/smtp-config', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(smtpConfig),
-      });
-
-      if (!res.ok) throw new Error('Failed to save SMTP settings');
+      await api.post('/api/iac-mobile/smtp-config', smtpConfig);
 
       showAlert('success', 'SMTP settings saved successfully!');
     } catch (err: any) {
-      showAlert('error', err.message);
+      showAlert('error', err.message || 'Failed to save SMTP settings');
     }
   };
 
@@ -507,20 +483,13 @@ export default function IacMobile() {
 
     setTestEmailLoading(true);
     try {
-      const res = await fetch('/api/iac-mobile/smtp-config/test', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ testEmail: testEmailAddress }),
+      await api.post('/api/iac-mobile/smtp-config/test', {
+        testEmail: testEmailAddress,
       });
-      const data = await res.json();
-
-      if (!res.ok) {
-        throw new Error(data.error || 'Test email failed');
-      }
 
       showAlert('success', `Test email sent successfully to ${testEmailAddress}!`);
     } catch (err: any) {
-      showAlert('error', err.message);
+      showAlert('error', err.message || 'Test email failed');
     } finally {
       setTestEmailLoading(false);
     }
@@ -529,23 +498,17 @@ export default function IacMobile() {
   // Simulator User Actions
   const handleSimRequestCheckin = async () => {
     try {
-      const res = await fetch('/api/iac-mobile/checkin-tickets', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          mobileUserId: simUserId,
-          mobileUserName: simUserName,
-          mobileUserEmail: simUserEmail,
-        }),
+      const ticketData = await api.post('/api/iac-mobile/checkin-tickets', {
+        mobileUserId: simUserId,
+        mobileUserName: simUserName,
+        mobileUserEmail: simUserEmail,
       });
-      const ticketData = await res.json();
-      if (!res.ok) throw new Error(ticketData.error || 'Check-in request failed');
 
       setSimTicket(ticketData);
       showAlert('success', `Pass created with code ${ticketData.ticketCode}! Visible in Admin Queue.`);
       fetchData();
     } catch (err: any) {
-      showAlert('error', err.message);
+      showAlert('error', err.message || 'Check-in request failed');
     }
   };
 
@@ -553,49 +516,38 @@ export default function IacMobile() {
     e.preventDefault();
     if (!simNewIssueDesc) return;
     try {
-      const res = await fetch('/api/iac-mobile/issues', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          reporterId: simUserId,
-          reporterName: simUserName,
-          category: simNewIssueCat,
-          description: simNewIssueDesc,
-        }),
+      await api.post('/api/iac-mobile/issues', {
+        reporterId: simUserId,
+        reporterName: simUserName,
+        category: simNewIssueCat,
+        description: simNewIssueDesc,
       });
-      if (!res.ok) throw new Error('Failed to submit issue');
 
       setSimNewIssueDesc('');
       showAlert('success', 'Issue posted to the IAC mobile community board!');
       fetchData();
     } catch (err: any) {
-      showAlert('error', err.message);
+      showAlert('error', err.message || 'Failed to submit issue');
     }
   };
 
   const handleSimSubmitBooking = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      const res = await fetch('/api/iac-mobile/booking-requests', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          mobileUserId: simUserId,
-          mobileUserName: simUserName,
-          contactEmail: simUserEmail,
-          roomNumber: simBookingRoom,
-          requestedDate: simBookingDate,
-          requestedSlot: simBookingSlot,
-          programName: simBookingProgram,
-        }),
+      await api.post('/api/iac-mobile/booking-requests', {
+        mobileUserId: simUserId,
+        mobileUserName: simUserName,
+        contactEmail: simUserEmail,
+        roomNumber: simBookingRoom,
+        requestedDate: simBookingDate,
+        requestedSlot: simBookingSlot,
+        programName: simBookingProgram,
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Booking request failed');
 
       showAlert('success', 'Booking request submitted to admin review queue!');
       fetchData();
     } catch (err: any) {
-      showAlert('error', err.message);
+      showAlert('error', err.message || 'Booking request failed');
     }
   };
 
@@ -825,6 +777,8 @@ export default function IacMobile() {
                           ? 'bg-emerald-100 text-emerald-800 border border-emerald-200'
                           : ticket.status === 'pending'
                           ? 'bg-amber-100 text-amber-800 border border-amber-200'
+                          : ticket.status === 'declined'
+                          ? 'bg-rose-100 text-rose-800 border border-rose-200'
                           : 'bg-zinc-100 text-zinc-600'
                       }`}
                     >
@@ -843,26 +797,82 @@ export default function IacMobile() {
                         Confirmed: {new Date(ticket.confirmedAt).toLocaleString()} by {ticket.confirmedBy}
                       </p>
                     )}
+                    {ticket.declinedAt && (
+                      <p className="flex items-center gap-1.5 text-rose-700 font-medium">
+                        <XCircle className="w-3.5 h-3.5" />
+                        Declined: {new Date(ticket.declinedAt).toLocaleString()} {ticket.declinedBy ? `by ${ticket.declinedBy}` : ''}
+                      </p>
+                    )}
+                    {ticket.declinedReason && (
+                      <p className="text-[11px] text-rose-600 bg-rose-50 px-2 py-1 rounded border border-rose-100">
+                        Reason: {ticket.declinedReason}
+                      </p>
+                    )}
                   </div>
 
                   {ticket.status === 'pending' && (
-                    <div className="pt-2 border-t border-zinc-100 flex items-center justify-between gap-3">
-                      <div className="flex-1">
-                        <input
-                          type="text"
-                          value={staffNameInput}
-                          onChange={(e) => setStaffNameInput(e.target.value)}
-                          placeholder="Staff Name"
-                          className="w-full text-xs px-3 py-1.5 rounded-lg border border-zinc-200 bg-zinc-50 focus:outline-none focus:ring-1 focus:ring-zinc-900"
-                        />
+                    <div className="pt-2 border-t border-zinc-100 space-y-2">
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="flex-1">
+                          <input
+                            type="text"
+                            value={staffNameInput}
+                            onChange={(e) => setStaffNameInput(e.target.value)}
+                            placeholder="Staff Name"
+                            className="w-full text-xs px-3 py-1.5 rounded-lg border border-zinc-200 bg-zinc-50 focus:outline-none focus:ring-1 focus:ring-zinc-900"
+                          />
+                        </div>
+                        <button
+                          onClick={() => handleConfirmTicket(ticket._id)}
+                          className="px-3.5 py-1.5 text-xs font-medium bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors shadow-sm shrink-0 flex items-center gap-1.5"
+                        >
+                          <CheckCircle2 className="w-3.5 h-3.5" />
+                          Confirm & Log
+                        </button>
+                        <button
+                          onClick={() => {
+                            if (decliningTicketId === ticket._id) {
+                              setDecliningTicketId(null);
+                            } else {
+                              setDecliningTicketId(ticket._id);
+                              setTicketDeclineReason('');
+                            }
+                          }}
+                          className="px-3 py-1.5 text-xs font-medium bg-rose-50 text-rose-700 border border-rose-200 rounded-lg hover:bg-rose-100 transition-colors shadow-sm shrink-0 flex items-center gap-1"
+                        >
+                          <XCircle className="w-3.5 h-3.5" />
+                          Decline
+                        </button>
                       </div>
-                      <button
-                        onClick={() => handleConfirmTicket(ticket._id)}
-                        className="px-4 py-1.5 text-xs font-medium bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors shadow-sm shrink-0 flex items-center gap-1.5"
-                      >
-                        <CheckCircle2 className="w-3.5 h-3.5" />
-                        Confirm & Log Visit
-                      </button>
+
+                      {decliningTicketId === ticket._id && (
+                        <div className="p-3 bg-rose-50/70 border border-rose-200 rounded-xl space-y-2 animate-fadeIn">
+                          <p className="text-xs font-bold text-rose-900">Decline Check-in Ticket</p>
+                          <input
+                            type="text"
+                            value={ticketDeclineReason}
+                            onChange={(e) => setTicketDeclineReason(e.target.value)}
+                            placeholder="Reason for declining (optional)"
+                            className="w-full text-xs px-3 py-1.5 rounded-lg border border-rose-300 bg-white focus:outline-none focus:ring-1 focus:ring-rose-500"
+                          />
+                          <div className="flex items-center justify-end gap-2">
+                            <button
+                              type="button"
+                              onClick={() => setDecliningTicketId(null)}
+                              className="px-2.5 py-1 text-xs text-zinc-600 hover:text-zinc-900"
+                            >
+                              Cancel
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleDeclineTicket(ticket._id)}
+                              className="px-3 py-1 text-xs font-semibold bg-rose-600 text-white rounded-lg hover:bg-rose-700 shadow-sm"
+                            >
+                              Confirm Decline
+                            </button>
+                          </div>
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>
