@@ -893,8 +893,10 @@ router.get('/announcements', async (req, res) => {
     const now = new Date();
     const query = {
       isActive: true,
-      $or: [{ startsAt: { $exists: false } }, { startsAt: null }, { startsAt: { $lte: now } }],
-      $or: [{ endsAt: { $exists: false } }, { endsAt: null }, { endsAt: { $gte: now } }],
+      $and: [
+        { $or: [{ startsAt: { $exists: false } }, { startsAt: null }, { startsAt: { $lte: now } }] },
+        { $or: [{ endsAt: { $exists: false } }, { endsAt: null }, { endsAt: { $gte: now } }] },
+      ],
     };
 
     const list = await Announcement.find(query).sort({ sortOrder: 1, createdAt: -1 });
@@ -934,6 +936,7 @@ router.post('/announcements', async (req, res) => {
     });
 
     await item.save();
+  req.app.get('io')?.emit('mobile:announcement:update');
     res.status(201).json(item);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -947,6 +950,7 @@ router.put('/announcements/:id', async (req, res) => {
     if (!item) {
       return res.status(404).json({ error: 'Announcement not found' });
     }
+    req.app.get('io')?.emit('mobile:announcement:update');
     res.json(item);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -960,6 +964,7 @@ router.delete('/announcements/:id', async (req, res) => {
     if (!item) {
       return res.status(404).json({ error: 'Announcement not found' });
     }
+    req.app.get('io')?.emit('mobile:announcement:update');
     res.json({ message: 'Announcement deleted successfully' });
   } catch (err) {
     res.status(500).json({ error: err.message });

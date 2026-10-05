@@ -25,6 +25,8 @@ const APP_STATE = {
   evidenceAttachment: null,
   campus: 'MAIN LOUNGE CAMPUS',
   announcements: [],
+  announcementIndex: 0,
+  announcementTimer: null,
   syncInterval: null,
 };
 
@@ -1020,17 +1022,72 @@ async function fetchAnnouncements() {
     if (res.ok) {
       const list = await res.json();
       APP_STATE.announcements = Array.isArray(list) ? list : [];
-      if (APP_STATE.announcements.length > 0) {
-        const top = APP_STATE.announcements[0];
-        const heading = document.getElementById('advisoryHeading');
-        const text = document.getElementById('advisoryText');
-        if (heading && top.title) heading.textContent = top.title;
-        if (text && top.description) text.textContent = top.description;
+      APP_STATE.announcementIndex = Math.min(APP_STATE.announcementIndex, Math.max(APP_STATE.announcements.length - 1, 0));
+      renderAnnouncement();
+      clearInterval(APP_STATE.announcementTimer);
+      if (APP_STATE.announcements.length > 1) {
+        APP_STATE.announcementTimer = setInterval(() => changeAnnouncement(1), 6000);
       }
+    } else {
+      APP_STATE.announcements = [];
+      renderAnnouncement();
     }
   } catch (err) {
     console.warn('Announcements fetch failed:', err);
+    APP_STATE.announcements = [];
+    renderAnnouncement();
   }
+}
+
+function renderAnnouncement() {
+  const announcements = APP_STATE.announcements;
+  const controls = document.getElementById('announcementControls');
+  const heading = document.getElementById('advisoryHeading');
+  const text = document.getElementById('advisoryText');
+  const category = document.getElementById('announcementCategory');
+  const count = document.getElementById('announcementCount');
+  const dots = document.getElementById('announcementDots');
+  const copy = document.getElementById('announcementCopy');
+  if (!heading || !text || !category || !count || !dots || !controls) return;
+
+  if (announcements.length === 0) {
+    heading.textContent = 'No announcements right now';
+    text.textContent = 'There are no active announcements to show.';
+    category.textContent = 'Updates';
+    count.textContent = '0 / 0';
+    controls.hidden = true;
+    dots.replaceChildren();
+    return;
+  }
+
+  const announcement = announcements[APP_STATE.announcementIndex];
+  heading.textContent = announcement.title || 'Announcement';
+  text.textContent = announcement.description || '';
+  category.textContent = announcement.category || 'notice';
+  count.textContent = `${APP_STATE.announcementIndex + 1} / ${announcements.length}`;
+  controls.hidden = announcements.length < 2;
+
+  dots.replaceChildren(...announcements.map((item, index) => {
+    const dot = document.createElement('button');
+    dot.type = 'button';
+    dot.className = 'advisory-dot';
+    dot.setAttribute('aria-label', `Show announcement ${index + 1}: ${item.title || 'Announcement'}`);
+    dot.setAttribute('aria-current', String(index === APP_STATE.announcementIndex));
+    dot.addEventListener('click', () => changeAnnouncement(index - APP_STATE.announcementIndex));
+    return dot;
+  }));
+
+  if (copy) {
+    copy.classList.remove('is-changing');
+    requestAnimationFrame(() => copy.classList.add('is-changing'));
+  }
+}
+
+function changeAnnouncement(offset) {
+  const total = APP_STATE.announcements.length;
+  if (total < 2) return;
+  APP_STATE.announcementIndex = (APP_STATE.announcementIndex + offset + total) % total;
+  renderAnnouncement();
 }
 
 function updateActivitySummary() {
@@ -1113,10 +1170,6 @@ function handleManualStationSync() {
 
 function showDirectionsModal() {
   alert('Directions to Room 3 (Compute Lab):\nTake Elevator B to Level 2. Turn left past the Central Hub. Station RIG-03 is on the north window cluster.');
-}
-
-function openAdvisoryModal() {
-  alert('Notice: Scheduled Maintenance tonight from 23:00 to 01:00 UTC.\nCompute Cluster Nodes 12-16 undergoing firmware patches. Backup routers will maintain lounge internet connectivity.');
 }
 
 function copyToClipboard(text) {

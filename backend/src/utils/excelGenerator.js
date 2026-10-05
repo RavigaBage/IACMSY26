@@ -1,5 +1,25 @@
 const ExcelJS = require('exceljs');
 
+function formatTime(value) {
+  if (!value) return 'N/A';
+
+  const date = value instanceof Date ? value : new Date(value);
+  if (!Number.isNaN(date.getTime())) {
+    return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  }
+
+  const match = String(value).trim().match(/^(\d{1,2}):(\d{2})(?::(\d{2}))?(?:\.\d+)?(?:Z|[+-]\d{2}:?\d{2})?$/i);
+  if (!match) return 'N/A';
+
+  const hours = Number(match[1]);
+  const minutes = Number(match[2]);
+  const seconds = Number(match[3] || 0);
+  if (hours > 23 || minutes > 59 || seconds > 59) return 'N/A';
+
+  const time = new Date(2000, 0, 1, hours, minutes, seconds);
+  return time.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+}
+
 /**
  * Builds a beautifully styled Excel workbook with KPI Summary Cards, Infographics/Progress Tables,
  * and detailed sheets for Event Programs and Internet Lounge Visitors.
@@ -410,8 +430,8 @@ async function buildMonthlyReportExcel({ monthName, year, loungeUsers, eventProg
         identifierType: (log.identifierType || 'N/A').toUpperCase(),
         gender: (log.gender || 'N/A').toUpperCase(),
         contactNumber: log.contactNumber || 'N/A',
-        timeIn: log.timeIn ? new Date(log.timeIn).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'N/A',
-        timeOut: log.timeOut ? new Date(log.timeOut).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'N/A',
+        timeIn: formatTime(log.timeIn),
+        timeOut: formatTime(log.timeOut),
       });
 
       row.height = 22;

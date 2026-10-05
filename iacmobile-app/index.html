@@ -176,24 +176,34 @@
         </div>
       </div>
 
-      <!-- Live Advisories -->
-      <div class="advisory-card">
+      <!-- Live Announcements -->
+      <section class="advisory-card" aria-label="Announcements">
         <div class="advisory-top">
           <div class="advisory-title">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/></svg>
-            <span>Live Advisories</span>
+            <span>Announcements</span>
           </div>
-          <span class="notice-pill">● New notice</span>
+          <span class="announcement-meta">
+            <span class="notice-pill" id="announcementCategory">Loading</span>
+            <span class="announcement-count" id="announcementCount" aria-live="polite">0 / 0</span>
+          </span>
         </div>
-        <div class="advisory-headline">
-          <strong id="advisoryHeading">Scheduled Maintenance</strong>
-          <span class="advisory-time">23:00 UTC</span>
+        <div class="announcement-copy" id="announcementCopy" aria-live="polite" aria-atomic="true">
+          <div class="advisory-headline">
+            <strong id="advisoryHeading">Loading announcements...</strong>
+          </div>
+          <p class="advisory-desc" id="advisoryText">Checking for the latest updates.</p>
         </div>
-        <p class="advisory-desc" id="advisoryText">
-          Compute Cluster Nodes 12-16 undergoing firmware patches tonight at 23:00 UTC. Secondary switches will remain active for lounge terminals.
-        </p>
-        <button class="advisory-link" onclick="openAdvisoryModal()">Read Advisory →</button>
-      </div>
+        <div class="announcement-controls" id="announcementControls" hidden>
+          <button class="announcement-nav" type="button" onclick="changeAnnouncement(-1)" aria-label="Previous announcement">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="m15 18-6-6 6-6"/></svg>
+          </button>
+          <div class="advisory-dots" id="announcementDots" role="group" aria-label="Choose announcement"></div>
+          <button class="announcement-nav" type="button" onclick="changeAnnouncement(1)" aria-label="Next announcement">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="m9 18 6-6-6-6"/></svg>
+          </button>
+        </div>
+      </section>
 
       <!-- Activity Summary -->
       <div class="section-label-row">
@@ -715,10 +725,9 @@
         <div class="form-field">
           <label>Facility / Room <span>*</span></label>
           <select id="bReqRoom" class="form-select" required>
-            <option value="3|Compute Lab|Conference Room 1">Room 3 Compute Lab (Rig 03 · Dual 4K + RTX 4090)</option>
-            <option value="1|Conf Suite|Seminar Room 1">Room 1 Conf Suite (Seminar & Team Sync · 25 pax)</option>
-            <option value="2|Training Lab|Training Lab">Room 2 Training Lab (18 Workstations)</option>
-            <option value="4|Meeting Room|Seminar Room 2">Room 4 Executive Briefing (12 pax)</option>
+            <option value="3|Compute Lab|Conference Room 1">Room 3 seminar room</option>
+            <option value="1|Conf Suite|Seminar Room 1">Room 1 Conf Suite (Seminar with monitor )</option>
+            <option value="2|Training Lab|Training Lab">Room 2 seminar room</option>
           </select>
         </div>
 
