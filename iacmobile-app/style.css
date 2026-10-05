@@ -640,6 +640,22 @@ body {
   min-height: 70px;
 }
 
+.announcement-image {
+  display: block;
+  width: 100%;
+  max-height: 190px;
+  aspect-ratio: 16 / 9;
+  object-fit: cover;
+  margin: 10px 0;
+  border-radius: 12px;
+  border: 1px solid var(--yellow-200);
+  background: #FFFFFF;
+}
+
+.announcement-image[hidden] {
+  display: none;
+}
+
 .announcement-copy.is-changing {
   animation: announcement-enter 220ms ease both;
 }

@@ -899,7 +899,7 @@ router.get('/announcements', async (req, res) => {
       ],
     };
 
-    const list = await Announcement.find(query).sort({ sortOrder: 1, createdAt: -1 });
+    const list = await Announcement.find(query).sort({ createdAt: -1 }).limit(5);
     res.json(list);
   } catch (err) {
     res.status(500).json({ error: err.message });

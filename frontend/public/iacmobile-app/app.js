@@ -25,6 +25,8 @@ const APP_STATE = {
   evidenceAttachment: null,
   campus: 'MAIN LOUNGE CAMPUS',
   announcements: [],
+  announcementIndex: 0,
+  announcementTimer: null,
   syncInterval: null,
 };
 
@@ -1019,18 +1021,104 @@ async function fetchAnnouncements() {
     const res = await apiFetch('/api/iac-mobile/announcements');
     if (res.ok) {
       const list = await res.json();
-      APP_STATE.announcements = Array.isArray(list) ? list : [];
-      if (APP_STATE.announcements.length > 0) {
-        const top = APP_STATE.announcements[0];
-        const heading = document.getElementById('advisoryHeading');
-        const text = document.getElementById('advisoryText');
-        if (heading && top.title) heading.textContent = top.title;
-        if (text && top.description) text.textContent = top.description;
+      APP_STATE.announcements = Array.isArray(list) ? list.slice(0, 5) : [];
+      APP_STATE.announcementIndex = Math.min(APP_STATE.announcementIndex, Math.max(APP_STATE.announcements.length - 1, 0));
+      renderAnnouncement();
+      clearInterval(APP_STATE.announcementTimer);
+      if (APP_STATE.announcements.length > 1) {
+        APP_STATE.announcementTimer = setInterval(() => changeAnnouncement(1), 6000);
       }
+    } else {
+      APP_STATE.announcements = [];
+      renderAnnouncement();
     }
   } catch (err) {
     console.warn('Announcements fetch failed:', err);
+    APP_STATE.announcements = [];
+    renderAnnouncement();
   }
+}
+
+function renderAnnouncement() {
+  const announcements = APP_STATE.announcements;
+  const controls = document.getElementById('announcementControls');
+  const latestHeading = document.getElementById('latestAnnouncementHeading');
+  const latestText = document.getElementById('latestAnnouncementText');
+  const latestCategory = document.getElementById('latestAnnouncementCategory');
+  const latestImage = document.getElementById('latestAnnouncementImage');
+  const heading = document.getElementById('advisoryHeading');
+  const text = document.getElementById('advisoryText');
+  const category = document.getElementById('announcementCategory');
+  const count = document.getElementById('announcementCount');
+  const dots = document.getElementById('announcementDots');
+  const copy = document.getElementById('announcementCopy');
+  if (!controls || !latestHeading || !latestText || !latestCategory || !latestImage || !heading || !text || !category || !count || !dots) return;
+
+  if (announcements.length === 0) {
+    latestHeading.textContent = 'No announcements right now';
+    latestText.textContent = 'There are no active announcements to show.';
+    latestCategory.textContent = 'Updates';
+    latestImage.hidden = true;
+    heading.textContent = 'No announcements right now';
+    text.textContent = 'There are no active announcements to show.';
+    category.textContent = 'Updates';
+    count.textContent = '0 / 0';
+    controls.hidden = true;
+    dots.replaceChildren();
+    return;
+  }
+
+  const latest = announcements[0];
+  latestHeading.textContent = latest.title || 'Announcement';
+  latestText.textContent = latest.description || '';
+  latestCategory.textContent = latest.category || 'notice';
+  setAnnouncementImage(latestImage, latest);
+
+  const announcement = announcements[APP_STATE.announcementIndex];
+  heading.textContent = announcement.title || 'Announcement';
+  text.textContent = announcement.description || '';
+  category.textContent = announcement.category || 'notice';
+  count.textContent = `${APP_STATE.announcementIndex + 1} / ${announcements.length}`;
+  controls.hidden = announcements.length < 2;
+  setAnnouncementImage(document.getElementById('announcementImage'), announcement);
+
+  dots.replaceChildren(...announcements.map((item, index) => {
+    const dot = document.createElement('button');
+    dot.type = 'button';
+    dot.className = 'advisory-dot';
+    dot.setAttribute('aria-label', `Show announcement ${index + 1}: ${item.title || 'Announcement'}`);
+    dot.setAttribute('aria-current', String(index === APP_STATE.announcementIndex));
+    dot.addEventListener('click', () => changeAnnouncement(index - APP_STATE.announcementIndex));
+    return dot;
+  }));
+
+  if (copy) {
+    copy.classList.remove('is-changing');
+    requestAnimationFrame(() => copy.classList.add('is-changing'));
+  }
+}
+
+function setAnnouncementImage(image, announcement) {
+  if (!image) return;
+  const imageUrl = typeof announcement.imageUrl === 'string' ? announcement.imageUrl.trim() : '';
+  image.hidden = !imageUrl;
+  image.onerror = () => {
+    image.hidden = true;
+  };
+  if (imageUrl) {
+    image.src = imageUrl;
+    image.alt = announcement.title ? `Image for ${announcement.title}` : 'Announcement image';
+  } else {
+    image.removeAttribute('src');
+    image.alt = '';
+  }
+}
+
+function changeAnnouncement(offset) {
+  const total = APP_STATE.announcements.length;
+  if (total < 2) return;
+  APP_STATE.announcementIndex = (APP_STATE.announcementIndex + offset + total) % total;
+  renderAnnouncement();
 }
 
 function updateActivitySummary() {
