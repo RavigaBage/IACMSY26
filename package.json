@@ -9,12 +9,20 @@
     "dev": "npm run build --workspace=frontend && node backend/server.js",
     "start": "node backend/server.js",
     "build": "npm run build --workspace=frontend",
-    "lint": "npm run lint --workspace=frontend"
+    "lint": "npm run lint --workspace=frontend",
+    "cap:sync": "npx cap sync android",
+    "build:android": "bash scripts/build_android_apk.sh"
   },
   "devDependencies": {
+    "@capacitor/cli": "^7.0.1",
+    "@capacitor/assets": "^3.0.5",
     "concurrently": "^9.2.4"
   },
   "dependencies": {
+    "@capacitor/android": "^7.0.1",
+    "@capacitor/core": "^7.0.1",
+    "@capacitor/splash-screen": "^7.0.0",
+    "@capacitor/status-bar": "^7.0.0",
     "exceljs": "^4.4.0",
     "mongodb-memory-server": "^11.2.0",
     "nodemailer": "^9.0.3",

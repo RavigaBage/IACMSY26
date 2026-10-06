@@ -197,7 +197,7 @@ useEffect(() => {
               setIsFormOpen(true);
             }
           }}
-          className="px-4 py-2 bg-zinc-900 text-white rounded-lg hover:bg-zinc-800 transition-colors text-sm font-medium flex items-center gap-2 self-start md:self-auto"
+          className="min-h-[44px] px-4 py-2.5 bg-zinc-900 text-white rounded-lg hover:bg-zinc-800 transition-colors text-sm font-medium flex items-center justify-center gap-2 self-start md:self-auto cursor-pointer"
         >
           {isFormOpen ? <X className="w-4 h-4" /> : <Plus className="w-4 h-4" />}
           {isFormOpen ? 'Cancel' : 'Add User'}
@@ -410,18 +410,20 @@ useEffect(() => {
                         )}
                       </td>
                       <td className="py-3 px-4 text-right">
-                        <div className="flex items-center justify-end gap-2">
+                        <div className="flex items-center justify-end gap-1">
                           <button
                             onClick={() => handleEdit(user)}
-                            className="p-1 text-zinc-400 hover:text-zinc-900 transition-colors"
+                            className="min-w-[40px] min-h-[40px] flex items-center justify-center rounded-lg text-zinc-500 hover:text-zinc-900 hover:bg-zinc-100 transition-colors cursor-pointer"
                             title="Edit"
+                            aria-label="Edit record"
                           >
                             <Edit2 className="w-4 h-4" />
                           </button>
                           <button
                             onClick={() => setItemToDelete(user._id)}
-                            className="p-1 text-zinc-400 hover:text-red-600 transition-colors"
+                            className="min-w-[40px] min-h-[40px] flex items-center justify-center rounded-lg text-zinc-500 hover:text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer"
                             title="Delete"
+                            aria-label="Delete record"
                           >
                             <Trash2 className="w-4 h-4" />
                           </button>

@@ -185,23 +185,6 @@ export default function LoginPage() {
             </button>
           </form>
 
-          {/* Quick Demo Access */}
-          <div className="mt-4 p-3 bg-amber-50/80 border border-amber-200/90 rounded-xl flex items-center justify-between text-xs">
-            <div>
-              <p className="font-bold text-amber-900 flex items-center gap-1">
-                <ShieldCheck className="w-3.5 h-3.5 text-amber-600" />
-                Demo Administrator
-              </p>
-              <p className="text-amber-700 text-[11px]">admin@iac.com • Admin@1234</p>
-            </div>
-            <button
-              type="button"
-              onClick={fillDemoAdmin}
-              className="px-2.5 py-1.5 font-bold text-amber-900 bg-amber-200 hover:bg-amber-300 rounded-lg transition-colors cursor-pointer text-xs"
-            >
-              Auto-fill ⚡
-            </button>
-          </div>
 
           <div className="flex items-center gap-3 my-6">
             <div className="h-px flex-1 bg-stone-200" />

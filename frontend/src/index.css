@@ -3,7 +3,16 @@
 @tailwind utilities;
 
 @layer base {
-  body {
-    @apply bg-slate-50 text-slate-900;
+  :root {
+    --sat: env(safe-area-inset-top);
+    --sar: env(safe-area-inset-right);
+    --sab: env(safe-area-inset-bottom);
+    --sal: env(safe-area-inset-left);
+  }
+
+  html, body {
+    @apply bg-zinc-50 text-zinc-900;
+    -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
   }
 }

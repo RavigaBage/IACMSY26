@@ -48,7 +48,6 @@ export function useCrud<T = any>({ endpoint, onSuccess, onError }: UseCrudOption
       if (res.totalPages !== undefined) setpages(res.totalPages);
       return res;
     } catch (err: any) {
-      console.error(`Failed to fetch from ${endpoint}:`, err);
       const errorMsg = getErrorMessage(err, 'Failed to load data');
       error(errorMsg);
       onError?.(err);
@@ -74,7 +73,6 @@ export function useCrud<T = any>({ endpoint, onSuccess, onError }: UseCrudOption
       await fetchAll();
       return res;
     } catch (err: any) {
-      console.error(`Failed to create record at ${endpoint}:`, err);
       const errorMsg = getErrorMessage(err, 'Failed to create record');
       error(errorMsg);
       onError?.(err);
@@ -103,7 +101,6 @@ export function useCrud<T = any>({ endpoint, onSuccess, onError }: UseCrudOption
       await fetchAll();
       return res;
     } catch (err: any) {
-      console.error(`Failed to update record ${id} at ${endpoint}:`, err);
       const errorMsg = getErrorMessage(err, 'Failed to update record');
       error(errorMsg);
       onError?.(err);
@@ -132,7 +129,6 @@ export function useCrud<T = any>({ endpoint, onSuccess, onError }: UseCrudOption
       await fetchAll();
       return res;
     } catch (err: any) {
-      console.error(`Failed to delete record ${id} at ${endpoint}:`, err);
       const errorMsg = getErrorMessage(err, 'Failed to delete record');
       error(errorMsg);
       onError?.(err);

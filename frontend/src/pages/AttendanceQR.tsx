@@ -56,8 +56,8 @@ export default function AttendanceQR() {
       } else {
         setActiveQR(null);
       }
-    } catch (err) {
-      console.error('Error fetching active QR:', err);
+    } catch {
+      // Handled silently
     }
   };
 
@@ -424,38 +424,43 @@ export default function AttendanceQR() {
                       <div className="flex items-center justify-end gap-2">
                         <button
                           onClick={() => setViewQR(code)}
-                          className="p-2 text-zinc-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                          className="min-w-[40px] min-h-[40px] flex items-center justify-center text-zinc-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors cursor-pointer"
                           title="View QR"
+                          aria-label="View QR"
                         >
                           <Eye className="w-4 h-4" />
                         </button>
                         <button
                           onClick={() => downloadQR(code)}
-                          className="p-2 text-zinc-400 hover:text-zinc-900 hover:bg-zinc-100 rounded-lg transition-colors"
+                          className="min-w-[40px] min-h-[40px] flex items-center justify-center text-zinc-500 hover:text-zinc-900 hover:bg-zinc-100 rounded-lg transition-colors cursor-pointer"
                           title="Download QR"
+                          aria-label="Download QR"
                         >
                           <Download className="w-4 h-4" />
                         </button>
                         <button
                           onClick={() => setModalAction({ type: 'regenerate', code })}
-                          className="p-2 text-zinc-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors"
+                          className="min-w-[40px] min-h-[40px] flex items-center justify-center text-zinc-500 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors cursor-pointer"
                           title="Regenerate QR Code"
+                          aria-label="Regenerate QR Code"
                         >
                           <RefreshCw className="w-4 h-4" />
                         </button>
                         {code.computedStatus === 'Active' && (
                           <button
                             onClick={() => setModalAction({ type: 'deactivate', code })}
-                            className="p-2 text-zinc-400 hover:text-orange-600 hover:bg-orange-50 rounded-lg transition-colors"
+                            className="min-w-[40px] min-h-[40px] flex items-center justify-center text-zinc-500 hover:text-orange-600 hover:bg-orange-50 rounded-lg transition-colors cursor-pointer"
                             title="Deactivate Now"
+                            aria-label="Deactivate QR Code"
                           >
                             <Ban className="w-4 h-4" />
                           </button>
                         )}
                         <button
                           onClick={() => setModalAction({ type: 'delete', code })}
-                          className="p-2 text-zinc-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                          className="min-w-[40px] min-h-[40px] flex items-center justify-center text-zinc-500 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
                           title="Delete"
+                          aria-label="Delete QR Code"
                         >
                           <Trash2 className="w-4 h-4" />
                         </button>
@@ -468,12 +473,6 @@ export default function AttendanceQR() {
                           value={`${window.location.origin}/attendance/${code.token}`}
                           size={1024}
                           level="H"
-                          imageSettings={{
-                            src: 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcSYTmefnUDCIgdXIk_GGVt_J0cgINbO2yEHvENEg1u2hzJQAwq4VFEetC0&s=10',
-                            height: 256,
-                            width: 256,
-                            excavate: true,
-                          }}
                         />
                       </div>
                     </td>

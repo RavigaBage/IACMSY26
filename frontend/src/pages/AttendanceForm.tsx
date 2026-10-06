@@ -104,15 +104,13 @@ export default function AttendanceForm() {
 
   return (
     <div className="min-h-screen bg-zinc-50 flex flex-col font-sans tracking-tight">
-      <header className="bg-white border-b border-zinc-200 px-6 py-4 flex items-center gap-4">
-        <img 
-          src="https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcSYTmefnUDCIgdXIk_GGVt_J0cgINbO2yEHvENEg1u2hzJQAwq4VFEetC0&s=10" 
-          alt="IAC Logo" 
-          className="h-10 object-contain"
-        />
+      <header className="bg-white border-b border-zinc-200 px-6 py-4 flex items-center gap-3">
+        <div className="w-10 h-10 rounded-xl bg-zinc-900 text-amber-400 font-bold flex items-center justify-center text-sm">
+          IAC
+        </div>
         <div>
-          <h1 className="text-sm font-bold text-[#00205B]">University of Ghana</h1>
-          <h2 className="text-xs text-zinc-500">Information Access Center</h2>
+          <h1 className="text-sm font-bold text-zinc-900">Information Access Center</h1>
+          <h2 className="text-xs text-zinc-500">Attendance Portal</h2>
         </div>
       </header>
 

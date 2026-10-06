@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">iacmobile</string>
+    <string name="title_activity_main">iacmobile</string>
+    <string name="package_name">com.iacmobile.app</string>
+    <string name="custom_url_scheme">com.iacmobile.app</string>
+</resources>
