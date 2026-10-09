@@ -10,16 +10,21 @@ services:
       NODE_ENV: production
       PORT: 5000
       BACKEND_PORT: 5000
-      MONGO_URL: ${MONGO_URL}
+      MONGO_URL: ${MONGO_URL:?Set a persistent MongoDB connection URI}
       USE_MEMORY_DB: "false"
       REDIS_URL: redis://redis:6379
-      JWT_SECRET: ${JWT_SECRET}
-      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET}
-      JWT_TICKET: ${JWT_TICKET}
+      JWT_SECRET: ${JWT_SECRET:?Set a unique production JWT_SECRET}
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:?Set a unique production JWT_REFRESH_SECRET}
+      JWT_TICKET: ${JWT_TICKET:?Set a unique production JWT_TICKET}
+      AGENT_TOKEN: ${AGENT_TOKEN:?Set the shared production agent token}
+      CORS_ORIGINS: ${CORS_ORIGINS:?Set comma-separated HTTPS dashboard origins}
+      INITIAL_ADMIN_EMAIL: ${INITIAL_ADMIN_EMAIL:?Set the initial administrator email}
+      INITIAL_ADMIN_PASSWORD: ${INITIAL_ADMIN_PASSWORD:?Set a unique initial administrator password}
+      INITIAL_ADMIN_NAME: ${INITIAL_ADMIN_NAME:?Set the initial administrator name}
       JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-1d}
       JWT_REFRESH_EXPIRES_IN: ${JWT_REFRESH_EXPIRES_IN:-7d}
       GEMINI_API_KEY: ${GEMINI_API_KEY:-}
-      COOKIE_SECURE: ${COOKIE_SECURE:-false}
+      COOKIE_SECURE: ${COOKIE_SECURE:-true}
     volumes:
       - uploads_data:/app/backend/uploads
     depends_on:

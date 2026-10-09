@@ -24,20 +24,12 @@ router.get('/summary-patch', protect, restrictTo('user', 'admin'), async(req, re
         });
 
     } catch (err) {
-        if (err.message && err.message.includes('bufferCommands')) {
-            console.warn('[AI Studio] Using mock lounge data');
-            return res.json({
-                status: 'success',
-                message: 'Lounge data (mock)',
-                data: [
-                    { _id: 'mock1', name: 'Alice Smith', identifier: 'GH-123456789-0', identifierType: 'ghana_card', contactNumber: '0501234567', gender: 'female', timeIn: new Date(Date.now() - 3600000).toISOString(), timeOut: '', Signature: 'ASmith' }
-                ],
-                page: 1, limit: 20, total: 1, totalPages: 1
-            });
-        }
-         res.status(500).json({
+        console.error('Failed to load lounge summary:', err.message);
+        res.status(err.message?.includes('bufferCommands') ? 503 : 500).json({
             status:'error',
-            message: err.message || 'An error occurred while fetching lounge data',
+            message: err.message?.includes('bufferCommands')
+                ? 'Database service is unavailable'
+                : 'An error occurred while fetching lounge data',
             data:null,
            });
     }

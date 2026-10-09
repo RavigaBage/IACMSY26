@@ -9,7 +9,6 @@
   "serialNumber": "auto",
   "remotePort": 8080,
   "authenticationMode": "token",
-  "authToken": "iac_agent_token_dev",
   "encryptionEnabled": true,
   "reconnectInterval": 3000,
   "heartbeatInterval": 30000,

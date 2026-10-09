@@ -108,10 +108,20 @@ async function runIntegrationTest() {
             clientSocket.emit("agent:register", {
                 deviceId: agentConfig.deviceId,
                 deviceName: agentConfig.deviceName,
+                hostname: "test-lab-pc-01",
                 operatingSystem: "Linux (TestOS)",
                 ipAddress: "192.168.1.50",
+                macAddress: "00:11:22:33:44:55",
                 location: agentConfig.location,
-                department: agentConfig.department
+                department: agentConfig.department,
+                assignedUser: "lab-admin",
+                serialNumber: "SN-TEST-001",
+                agentVersion: "1.2.3",
+                remotePort: 8090,
+                authenticationMode: "token",
+                encryptionEnabled: false,
+                permissions: { allowRemoteShutdown: false, allowRemoteRestart: true },
+                adminNotes: "Initial registration",
             });
         });
 
@@ -130,7 +140,42 @@ async function runIntegrationTest() {
     const dbDevice = await models.devices.findOne({ deviceId: "TEST-LAB-PC-01" });
     assert(dbDevice, "Device must exist in MongoDB");
     assert.strictEqual(dbDevice.status.remoteAgent, "active", "Device remoteAgent status must be 'active'");
+    assert.strictEqual(dbDevice.operatingSystem, "Linux (TestOS)", "Registration should store operatingSystem even without the legacy platform field");
     console.log("✓ Database device verified: active and registered");
+
+    const refreshResult = await registerAgentService({
+        deviceId: agentConfig.deviceId,
+        deviceName: "Configured Workstation",
+        hostname: "test-lab-pc-01",
+        ipAddress: "192.168.1.51",
+        operatingSystem: "Windows 11",
+        department: "Configured Department",
+        location: "Configured Lab",
+        assignedUser: "configured.user",
+        serialNumber: "SN-CONFIGURED-002",
+        agentVersion: "2.0.0",
+        remotePort: 9090,
+        authenticationMode: "certificate",
+        encryptionEnabled: true,
+        permissions: { allowRemoteShutdown: true, allowRemoteRestart: false },
+        adminNotes: "Updated agent configuration",
+    });
+    assert.strictEqual(refreshResult.status, "success", "Re-registration should update the existing device");
+    const refreshedDevice = await models.devices.findById(dbDevice._id);
+    assert.strictEqual(refreshedDevice.deviceName, "Configured Workstation");
+    assert.strictEqual(refreshedDevice.operatingSystem, "Windows 11");
+    assert.strictEqual(refreshedDevice.department, "Configured Department");
+    assert.strictEqual(refreshedDevice.location, "Configured Lab");
+    assert.strictEqual(refreshedDevice.assignedUser, "configured.user");
+    assert.strictEqual(refreshedDevice.serialNumber, "SN-CONFIGURED-002");
+    assert.strictEqual(refreshedDevice.remotePort, 9090);
+    assert.strictEqual(refreshedDevice.authenticationMode, "certificate");
+    assert.strictEqual(refreshedDevice.encryptionEnabled, true);
+    assert.strictEqual(refreshedDevice.permissions.allowRemoteShutdown, true);
+    assert.strictEqual(refreshedDevice.permissions.allowRemoteRestart, false);
+    assert.strictEqual(refreshedDevice.adminNotes, "Updated agent configuration");
+    assert(refreshedDevice.security.ipHistory.includes("192.168.1.51"));
+    console.log("✓ Re-registration refreshes configured device details");
 
     // 5. Test Status Ping (device-Status endpoint / dispatcher.dispatchUpdate)
     console.log("\n▶ Testing Administrator Ping (device:status)...");

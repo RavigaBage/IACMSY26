@@ -9,35 +9,22 @@ const registerAgentService = async (data) => {
     const DevicesData = devices;
     try {
       const normalized = {
-        deviceName: data.deviceName || "test_data",
-        hostname: data.hostname || "test_data",
-        ipAddress: data.ipAddress || "test_data",
-        macAddress: data.macAddress || "test_data",
-        operatingSystem: data.platform || "test_data",
-        department: data.department || "test_data",
-        deviceId:data.deviceId || "test_data",
-        location: data.location || "test_data",
-        assignedUser: data.assignedUser || "test_data",
-        serialNumber: data.serialNumber || "test_data",
-        agentVersion: data.agentVersion || "test_data",
-        remotePort: data.remotePort || 8080,
+        deviceName: data.deviceName || data.hostname || data.deviceId || "Unknown device",
+        hostname: data.hostname || data.deviceName || data.deviceId || "",
+        ipAddress: data.ipAddress || "",
+        macAddress: data.macAddress || "",
+        operatingSystem: data.operatingSystem || data.platform || "",
+        department: data.department || "",
+        deviceId: data.deviceId || "",
+        location: data.location || "",
+        assignedUser: data.assignedUser || "",
+        serialNumber: data.serialNumber || "",
+        agentVersion: data.agentVersion || "",
+        remotePort: data.remotePort ?? 8080,
         authenticationMode: data.authenticationMode || "token",
-        encryptionEnabled:
-          data.encryptionEnabled !== undefined
-            ? data.encryptionEnabled
-            : true,
-        permissions: {
-          allowRemoteShutdown:
-            data.permissions?.allowRemoteShutdown ?? true,
-          allowRemoteRestart:
-            data.permissions?.allowRemoteRestart ?? true,
-          allowRemoteLock: data.permissions?.allowRemoteLock ?? true,
-          allowRemoteMonitoring:
-            data.permissions?.allowRemoteMonitoring ?? true,
-          allowFileTransfer:
-            data.permissions?.allowFileTransfer ?? false,
-        },
-        adminNotes: data.adminNotes || "test_data",
+        encryptionEnabled: data.encryptionEnabled ?? true,
+        permissions: data.permissions || {},
+        adminNotes: data.adminNotes || "",
         status: {
           networkValidation:
             data.status?.networkValidation || "pending",
@@ -46,7 +33,7 @@ const registerAgentService = async (data) => {
         },
         security: {
           lastSeen: data.security?.lastSeen || null,
-          ipHistory: data.security?.ipHistory || "test_data",
+          ipHistory: data.security?.ipHistory || [],
           flagged: data.security?.flagged ?? false,
           riskLevel: data.security?.riskLevel || "low",
         },
@@ -70,12 +57,38 @@ const registerAgentService = async (data) => {
           ...deviceRecord.security,
           lastSeen: new Date(),
         };
-        if (normalized.ipAddress) deviceRecord.ipAddress = normalized.ipAddress;
-        if (normalized.macAddress) deviceRecord.macAddress = normalized.macAddress;
-        if (normalized.operatingSystem) deviceRecord.operatingSystem = normalized.operatingSystem;
-        if (normalized.agentVersion) deviceRecord.agentVersion = normalized.agentVersion;
-        if (normalized.permissions) deviceRecord.permissions = { ...deviceRecord.permissions, ...normalized.permissions };
-        if (normalized.deviceId && !deviceRecord.deviceId) deviceRecord.deviceId = normalized.deviceId;
+        const refreshableFields = [
+          "deviceName",
+          "hostname",
+          "ipAddress",
+          "macAddress",
+          "operatingSystem",
+          "department",
+          "location",
+          "assignedUser",
+          "serialNumber",
+          "agentVersion",
+          "deviceId",
+          "remotePort",
+          "authenticationMode",
+          "encryptionEnabled",
+          "adminNotes",
+        ];
+        for (const field of refreshableFields) {
+          const hasValue = data[field] !== undefined && data[field] !== null && data[field] !== "";
+          const operatingSystemProvided = field === "operatingSystem" && data.platform;
+          if (hasValue || operatingSystemProvided) {
+            deviceRecord[field] = normalized[field];
+          }
+        }
+        if (data.permissions) {
+          deviceRecord.permissions = { ...deviceRecord.permissions, ...normalized.permissions };
+        }
+        if (normalized.ipAddress) {
+          const ipHistory = deviceRecord.security.ipHistory || [];
+          if (!ipHistory.includes(normalized.ipAddress)) ipHistory.push(normalized.ipAddress);
+          deviceRecord.security.ipHistory = ipHistory;
+        }
         deviceRecord.isDeleted = false;
 
         await deviceRecord.save();
@@ -111,7 +124,6 @@ const registerAgentService = async (data) => {
       };
     }
 
-    return { success: true };
 };
 
 module.exports = { registerAgentService };

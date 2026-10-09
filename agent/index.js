@@ -66,7 +66,7 @@ const config = {
     serialNumber: resolvedSerialNumber,
     remotePort: baseConfig.remotePort ?? 8080,
     authenticationMode: baseConfig.authenticationMode || "token",
-    authToken: process.env.AGENT_TOKEN || baseConfig.authToken || "iac_agent_token_dev",
+    authToken: process.env.AGENT_TOKEN || baseConfig.authToken || "",
     encryptionEnabled: baseConfig.encryptionEnabled ?? true,
     reconnectInterval: parseInt(process.env.RECONNECT_INTERVAL || baseConfig.reconnectInterval || 3000, 10),
     heartbeatInterval: parseInt(baseConfig.heartbeatInterval || 30000, 10),
@@ -225,6 +225,11 @@ socket.on("connect", () => {
 });
 
 socket.on("agent:registered", (ack) => {
+    if (ack?.status !== "success") {
+        console.error(`❌ [Registration Failed] ${ack?.message || "Server did not confirm device registration"}`);
+        return;
+    }
+
     console.log("✅ [Registered] Server acknowledged registration:", ack);
     if (ack?.id) {
         handler.setServerAssignedId(ack.id);

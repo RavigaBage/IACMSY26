@@ -44,11 +44,11 @@ npm install
 
 ### 3. Configure the Agent
 
-Edit `config.json` or configure environment variables:
+Edit `config.json` or configure environment variables. Each installed PC must have a unique, stable `deviceId`, and its `serverUrl` must point to a backend address reachable from that PC:
 
 ```json
 {
-  "serverUrl": "http://192.168.1.100:3000",
+  "serverUrl": "https://iac.example.com",
   "deviceId": "LAB-PC-01",
   "deviceName": "Laboratory Workstation 01",
   "department": "Computer Science",
@@ -63,15 +63,20 @@ Edit `config.json` or configure environment variables:
 }
 ```
 
+Do not use `localhost` unless the backend runs on the same PC as the agent. Production agents must use the same `AGENT_TOKEN` configured on the backend. Prefer setting it in the Windows service environment; alternatively, add `authToken` to that machine's local `config.json`. Never commit production tokens.
+
 #### Environment Variables Override
 
 | Variable | Description | Default |
 |---|---|---|
-| `SERVER_URL` | IACMSY26 Backend Server URL | `http://localhost:3000` |
+| `SERVER_URL` / `IAC_SERVER_URL` | IACMSY26 Backend URL reachable from this PC | `http://localhost:3000` (development only) |
 | `DEVICE_ID` | Unique identifier for this PC | Hostname |
 | `DEVICE_NAME` | Human-friendly label | Hostname |
 | `LOCATION` | Room or lab name | `Training Lab` |
 | `DEPARTMENT` | Department name | `Engineering Lab` |
+| `ASSIGNED_USER` | User responsible for this PC | Current OS user |
+| `SERIAL_NUMBER` | Device serial number | Hostname-based value |
+| `AGENT_TOKEN` | Shared token required by the production backend | None |
 | `SIMULATE_COMMANDS` | Set to `"true"` to simulate without actual reboot | `false` |
 
 ---

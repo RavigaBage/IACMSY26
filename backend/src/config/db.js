@@ -6,24 +6,23 @@ const MobileUserProfile = require('../models/MobileUserProfile');
 let mongoServer;
 
 const seedInitialData = async () => {
-    try {
-        const adminExists = await User.findOne({
-            email: 'admin@iac.com'
+    const production = process.env.NODE_ENV === 'production';
+    const adminEmail = production ? process.env.INITIAL_ADMIN_EMAIL : 'admin@iac.com';
+    const adminPassword = production ? process.env.INITIAL_ADMIN_PASSWORD : 'Admin@1234';
+    const adminName = production ? process.env.INITIAL_ADMIN_NAME : 'Administrator';
+    const adminExists = await User.findOne({ email: adminEmail });
+
+    if (!adminExists) {
+        await User.create({
+            name: adminName,
+            email: adminEmail,
+            password: adminPassword,
+            role: 'admin',
         });
+        console.log(`✅ Initial administrator created (${adminEmail})`);
+    }
 
-        if (!adminExists) {
-            await User.create({
-                name: 'Administrator',
-                email: 'admin@iac.com',
-                password: 'Admin@1234',
-                role: 'admin',
-            });
-
-            console.log('✅ Default admin user created (admin@iac.com)');
-        } else {
-            console.log('ℹ️ Default admin already exists');
-        }
-
+    if (!production) {
         const mobileDemoExists = await MobileUserProfile.findOne({
             email: 'alex.vance@mit.edu'
         });
@@ -42,9 +41,6 @@ const seedInitialData = async () => {
             });
             console.log('✅ Default mobile demo user created (alex.vance@mit.edu)');
         }
-
-    } catch (err) {
-        console.error('❌ Error seeding default admin or mobile demo:', err.message);
     }
 };
 
@@ -55,6 +51,10 @@ const connectDB = async () => {
         process.env.USE_MEMORY_DB === 'true' ||
         uri === 'memory' ||
         !uri;
+
+    if (process.env.NODE_ENV === 'production' && useMemoryDb) {
+        throw new Error('Production requires a persistent MongoDB database; configure MONGO_URL and set USE_MEMORY_DB=false');
+    }
 
     // ==========================================
     // MONGODB MEMORY SERVER
@@ -71,11 +71,7 @@ const connectDB = async () => {
             await seedInitialData();
             return;
         } catch (err) {
-            console.warn(
-                '⚠️ Failed to start MongoMemoryServer, continuing with offline fallback:',
-                err.message
-            );
-            return;
+            throw new Error(`Failed to start MongoDB Memory Server: ${err.message}`, { cause: err });
         }
     }
 
@@ -98,9 +94,7 @@ const connectDB = async () => {
         await seedInitialData();
 
     } catch (err) {
-        console.warn(
-            `⚠️ MongoDB connection failed, continuing with offline fallback: ${err.message}`
-        );
+        throw new Error(`MongoDB connection failed: ${err.message}`, { cause: err });
     }
 };
 

@@ -1,6 +1,7 @@
 const path = require('path');
 require('dotenv').config({ path: path.join(__dirname, '../.env') });
 require('dotenv').config();
+const crypto = require('crypto');
 const express = require('express');
 const fs = require('fs');
 const cookieParser = require('cookie-parser');
@@ -16,10 +17,31 @@ const SocketService = require("./src/services/socketService");
 const {registerAgentService} = require("./src/services/RegisterDevice");
 const { initServices } = require("./src/services");
 const createProtectedRoutes =require('./src/routes/protected');
+const allowedOrigins = (process.env.CORS_ORIGINS || '')
+    .split(',')
+    .map((origin) => origin.trim())
+    .filter(Boolean);
+const corsOrigin = process.env.NODE_ENV === 'production' ? allowedOrigins : true;
 const io = new Server(server, {
     cors: {
-        origin: "*"
+        origin: corsOrigin,
     }
+});
+io.use((socket, next) => {
+    const expectedToken = process.env.AGENT_TOKEN;
+    if (process.env.NODE_ENV !== 'production' && !expectedToken) return next();
+
+    const providedToken = socket.handshake.auth?.token;
+    if (typeof expectedToken !== 'string' || typeof providedToken !== 'string') {
+        return next(new Error('Agent authentication failed'));
+    }
+
+    const expected = Buffer.from(expectedToken);
+    const provided = Buffer.from(providedToken);
+    if (expected.length !== provided.length || !crypto.timingSafeEqual(expected, provided)) {
+        return next(new Error('Agent authentication failed'));
+    }
+    next();
 });
 app.set('io', io);
 const socketService = new SocketService(io);
@@ -55,7 +77,7 @@ const apiRateLimiter = rateLimit({
 
 app.use(cookieParser());
 app.use(cors({
-    origin: true,
+    origin: corsOrigin,
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE','PATCH'],
     allowedHeaders: ['Content-Type', 'Authorization']
@@ -142,17 +164,6 @@ app.get(/^(?!\/api).*/, (req, res) => {
 });
 
 app.use((err, req, res, next) => {
-    if (err.name === 'MongooseError' || err.name === 'MongoNetworkError' || err.message?.includes('buffering timed out')) {
-        console.warn('[AI Studio] Database offline — returning mock empty response');
-        if (req.method === 'GET') {
-          if (req.path.includes('validate')) return res.json({ success: true, data: { label: 'Mock Session', token: 'mocktoken' } }); return res.json(req.path.endsWith('s') || req.path.endsWith('s/') ? [] : {});
-        }
-        return res.status(200).json({ success: true, data: { _id: 'mock_id', label: 'Mock Session', durationValue: 1, durationUnit: 'hours', token: 'mocktoken123', computedStatus: 'Active', createdAt: new Date(), expiresAt: new Date(Date.now() + 3600000) } });
-    }
-    next(err);
-});
-
-app.use((err, req, res, next) => {
     if (res.headersSent) {
         return next(err);
     }
@@ -165,12 +176,18 @@ app.use((err, req, res, next) => {
         });
     }
     console.error(err.stack || err.message);
+    if (err.name === 'MongooseError' || err.name === 'MongoNetworkError' || err.message?.includes('buffering timed out')) {
+        return res.status(503).json({
+            status: 'error',
+            message: 'Database service is unavailable',
+        });
+    }
     const isClientError = err.name === 'ValidationError' || err.name === 'CastError' || err.statusCode === 400 || (err.message && err.message.toLowerCase().includes('validation'));
     const statusCode = err.statusCode || (isClientError ? 400 : 500);
     res.status(statusCode).json({
         status: 'error',
-        message: err.message || (statusCode >= 500 ? 'Internal server error' : 'Request failed'),
-        error: err.message || (statusCode >= 500 ? 'Internal server error' : 'Request failed'),
+        message: statusCode >= 500 ? 'Internal server error' : (err.message || 'Request failed'),
+        error: statusCode >= 500 ? 'Internal server error' : (err.message || 'Request failed'),
     });
 });
 
@@ -215,11 +232,18 @@ io.on("connection", (socket) => {
         socket.deviceId = data.deviceId;
         socket.join(`device:${data.deviceId}`);
         const regResult = await registerAgentService(data);
-        if (regResult?.data_?._id) {
-            socket.deviceMongoId = regResult.data_._id.toString();
-            socket.join(`device:${socket.deviceMongoId}`);
-            socketService.registerDevice(socket.deviceMongoId, socket);
+        if (regResult?.status !== "success" || !regResult.data_?._id) {
+            console.error(`[Socket] Device registration failed for ${data.deviceId}: ${regResult?.message || "No device record returned"}`);
+            socket.emit("agent:registered", {
+                status: "error",
+                deviceId: data.deviceId,
+                message: regResult?.message || "Device registration failed",
+            });
+            return;
         }
+        socket.deviceMongoId = regResult.data_._id.toString();
+        socket.join(`device:${socket.deviceMongoId}`);
+        socketService.registerDevice(socket.deviceMongoId, socket);
         socketService.registerDevice(data.deviceId, socket);
 
         if (dispatcher) {
@@ -248,11 +272,59 @@ app.get("/test", (req, res) => {
     res.send("Test command sent");
 });
 
+function validateProductionConfig() {
+    if (process.env.NODE_ENV !== 'production') return;
+
+    const required = [
+        'MONGO_URL',
+        'JWT_SECRET',
+        'JWT_REFRESH_SECRET',
+        'JWT_TICKET',
+        'AGENT_TOKEN',
+        'CORS_ORIGINS',
+        'INITIAL_ADMIN_EMAIL',
+        'INITIAL_ADMIN_PASSWORD',
+        'INITIAL_ADMIN_NAME',
+    ];
+    const missing = required.filter((name) => !process.env[name]?.trim());
+    if (missing.length) {
+        throw new Error(`Missing required production environment variables: ${missing.join(', ')}`);
+    }
+    if (process.env.USE_MEMORY_DB === 'true') {
+        throw new Error('USE_MEMORY_DB must be false in production');
+    }
+    if (process.env.COOKIE_SECURE !== 'true') {
+        throw new Error('COOKIE_SECURE must be true in production');
+    }
+    for (const name of ['JWT_SECRET', 'JWT_REFRESH_SECRET', 'JWT_TICKET', 'AGENT_TOKEN']) {
+        if (process.env[name].length < 32 || /^(your_|replace_|dummy_)/i.test(process.env[name])) {
+            throw new Error(`${name} must be a unique, non-placeholder value of at least 32 characters in production`);
+        }
+    }
+    if (process.env.INITIAL_ADMIN_PASSWORD.length < 16 || /^(your_|replace_|dummy_)/i.test(process.env.INITIAL_ADMIN_PASSWORD)) {
+        throw new Error('INITIAL_ADMIN_PASSWORD must be a non-placeholder value of at least 16 characters in production');
+    }
+    if (process.env.INITIAL_ADMIN_EMAIL.endsWith('@example.com')) {
+        throw new Error('INITIAL_ADMIN_EMAIL must be a real administrator email in production');
+    }
+    if (new Set([process.env.JWT_SECRET, process.env.JWT_REFRESH_SECRET, process.env.JWT_TICKET, process.env.AGENT_TOKEN]).size !== 4) {
+        throw new Error('JWT secrets and the agent token must be unique in production');
+    }
+    const origins = allowedOrigins.map((origin) => new URL(origin));
+    if (!origins.length || origins.some((origin) => origin.protocol !== 'https:' || origin.hostname.endsWith('.example'))) {
+        throw new Error('CORS_ORIGINS must contain real HTTPS origins in production');
+    }
+}
+
 const startServer = async () => {
+    validateProductionConfig();
     await connectDB();
     server.listen(PORT, "0.0.0.0", () => {
         console.log(`🚀 Server running on port ${PORT}`);
     });
 };
 
-startServer();
+startServer().catch((err) => {
+    console.error(`❌ Server startup failed: ${err.message}`);
+    process.exit(1);
+});

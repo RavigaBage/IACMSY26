@@ -5,6 +5,8 @@ frontend/dist
 .git
 .gitignore
 *.env
+.env
+.env.*
 .env.local
 .env.*.local
 *.tsbuildinfo
