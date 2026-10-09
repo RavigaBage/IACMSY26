@@ -1,0 +1,80 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <defs>
+    <clipPath id="circleClip">
+      <circle cx="512" cy="512" r="460" />
+    </clipPath>
+    <clipPath id="leftHalf">
+      <rect x="0" y="0" width="512" height="1024" />
+    </clipPath>
+    <clipPath id="rightHalf">
+      <rect x="512" y="0" width="512" height="1024" />
+    </clipPath>
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#18181b" />
+      <stop offset="100%" stop-color="#09090b" />
+    </linearGradient>
+    <filter id="shadow" x="-10%" y="-10%" width="120%" height="120%">
+      <feDropShadow dx="0" dy="12" stdDeviation="16" flood-color="#000" flood-opacity="0.4" />
+    </filter>
+  </defs>
+
+  <!-- Background Base -->
+  <rect width="1024" height="1024" rx="220" fill="url(#bgGrad)" />
+
+  <!-- Outer Ring Shield -->
+  <circle cx="512" cy="512" r="460" fill="#ffffff" filter="url(#shadow)" />
+
+  <!-- Dual Flag Circle Area -->
+  <g clip-path="url(#circleClip)">
+    <!-- LEFT SIDE: GHANA FLAG -->
+    <g clip-path="url(#leftHalf)">
+      <!-- Red stripe -->
+      <rect x="0" y="0" width="1024" height="341.3" fill="#CE1126" />
+      <!-- Gold/Yellow stripe -->
+      <rect x="0" y="341.3" width="1024" height="341.3" fill="#FCD116" />
+      <!-- Green stripe -->
+      <rect x="0" y="682.6" width="1024" height="341.4" fill="#006B3F" />
+      <!-- Black Star (Ghana) shifted slightly left to be prominent -->
+      <polygon points="360,420 380,480 440,480 390,520 410,580 360,540 310,580 330,520 280,480 340,480" fill="#000000" />
+    </g>
+
+    <!-- RIGHT SIDE: SOUTH KOREA FLAG -->
+    <g clip-path="url(#rightHalf)">
+      <!-- White base -->
+      <rect x="512" y="0" width="512" height="1024" fill="#FFFFFF" />
+      
+      <!-- Korean Taegeuk (Red upper, Blue lower) centered on right half -->
+      <g transform="translate(664, 512)">
+        <!-- Lower blue semi-circle -->
+        <path d="M 0,-130 A 130 130 0 0 1 0,130 A 65 65 0 0 1 0,0 A 65 65 0 0 0 0,-130" fill="#0047A0" />
+        <!-- Upper red semi-circle -->
+        <path d="M 0,130 A 130 130 0 0 1 0,-130 A 65 65 0 0 1 0,0 A 65 65 0 0 0 0,130" fill="#CD2E3A" />
+      </g>
+
+      <!-- Korean Trigrams (Simplified representation around Taegeuk) -->
+      <!-- Geon (Heaven: 3 solid bars) top right -->
+      <g transform="translate(850, 320) rotate(45)">
+        <rect x="-35" y="-18" width="70" height="8" rx="2" fill="#000000" />
+        <rect x="-35" y="-5" width="70" height="8" rx="2" fill="#000000" />
+        <rect x="-35" y="8" width="70" height="8" rx="2" fill="#000000" />
+      </g>
+      <!-- Gon (Earth: 3 broken bars) bottom right -->
+      <g transform="translate(850, 700) rotate(-45)">
+        <rect x="-35" y="-18" width="32" height="8" rx="2" fill="#000000" />
+        <rect x="3" y="-18" width="32" height="8" rx="2" fill="#000000" />
+        <rect x="-35" y="-5" width="32" height="8" rx="2" fill="#000000" />
+        <rect x="3" y="-5" width="32" height="8" rx="2" fill="#000000" />
+        <rect x="-35" y="8" width="32" height="8" rx="2" fill="#000000" />
+        <rect x="3" y="8" width="32" height="8" rx="2" fill="#000000" />
+      </g>
+    </g>
+
+    <!-- Dividing diagonal/vertical golden stripe -->
+    <line x1="512" y1="52" x2="512" y2="972" stroke="#FFFFFF" stroke-width="12" />
+  </g>
+
+  <!-- Central Crest Badge "IAC" -->
+  <circle cx="512" cy="512" r="160" fill="#18181b" stroke="#FCD116" stroke-width="12" filter="url(#shadow)" />
+  <text x="512" y="528" font-family="system-ui, -apple-system, sans-serif" font-weight="900" font-size="105" fill="#FCD116" text-anchor="middle" letter-spacing="4">IAC</text>
+  <text x="512" y="585" font-family="system-ui, -apple-system, sans-serif" font-weight="700" font-size="32" fill="#FFFFFF" text-anchor="middle" letter-spacing="3">MOBILE</text>
+</svg>

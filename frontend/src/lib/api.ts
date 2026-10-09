@@ -1,8 +1,19 @@
 
 const AUTH_ENDPOINTS = ["auth/refresh", "auth/verify", "auth/login"];
-const API_BASE_URL = import.meta.env.PUBLIC_API_SERVER_URL || "";
+const API_BASE_URL = (
+  import.meta.env.VITE_API_BASE_URL ||
+  import.meta.env.VITE_API_URL ||
+  import.meta.env.VITE_BACKEND_URL ||
+  import.meta.env.PUBLIC_API_SERVER_URL ||
+  (typeof window !== 'undefined' && (window.location.protocol.startsWith('capacitor') || window.location.protocol.startsWith('file'))
+    ? (import.meta.env.VITE_API_SERVER_URL || '')
+    : '')
+).replace(/\/$/, '');
 
 function getUrl(endpoint: string): string {
+  if (endpoint.startsWith('http://') || endpoint.startsWith('https://')) {
+    return endpoint;
+  }
   const cleanEndpoint = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
   return API_BASE_URL ? `${API_BASE_URL}${cleanEndpoint}` : cleanEndpoint;
 }
@@ -74,8 +85,10 @@ export async function refreshAccessToken(): Promise<boolean> {
 
 export function redirectToLogin() {
   setAccessToken(null);
-  if (typeof window !== "undefined" && window.location.pathname !== "/login") {
-    window.location.href = "/login";
+  if (typeof window !== "undefined") {
+    if (window.location.hash !== "#/login") {
+      window.location.hash = "#/login";
+    }
   }
 }
 

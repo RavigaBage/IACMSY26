@@ -503,18 +503,20 @@ export default function Devices() {
                         {device.security?.lastSeen ? formatDistanceToNow(new Date(device.security.lastSeen), { addSuffix: true }) : '-'}
                       </td>
                       <td className="py-3 px-4 text-right">
-                        <div className="flex items-center justify-end gap-2">
+                        <div className="flex items-center justify-end gap-1">
                           <button
                             onClick={(e) => handleEdit(device, e)}
-                            className="p-1 text-zinc-400 hover:text-zinc-900 transition-colors"
+                            className="min-w-[40px] min-h-[40px] flex items-center justify-center rounded-lg text-zinc-500 hover:text-zinc-900 hover:bg-zinc-100 transition-colors cursor-pointer"
                             title="Edit"
+                            aria-label="Edit device"
                           >
                             <Edit2 className="w-4 h-4" />
                           </button>
                           <button
                             onClick={(e) => requestDelete(device, e)}
-                            className="p-1 text-zinc-400 hover:text-red-600 transition-colors"
+                            className="min-w-[40px] min-h-[40px] flex items-center justify-center rounded-lg text-zinc-500 hover:text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer"
                             title="Delete"
+                            aria-label="Delete device"
                           >
                             <Trash2 className="w-4 h-4" />
                           </button>

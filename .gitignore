@@ -15,3 +15,7 @@ frontend/.vite
 .env.save*
 *.bak
 *.bak.*
+*.keystore
+*.jks
+keystore.properties
+/release

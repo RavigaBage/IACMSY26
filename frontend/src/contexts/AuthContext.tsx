@@ -67,13 +67,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const logout = async () => {
     try {
       await api.post("/api/auth/logout", {});
-    } catch (e) {
-      console.warn("Logout request failed:", e);
+    } catch {
+      // Handled silently
     } finally {
       setUser(null);
       setAccessToken(null);
       if (typeof window !== "undefined") {
-        window.location.href = "/login";
+        window.location.hash = "#/login";
       }
     }
   };

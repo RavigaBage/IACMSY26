@@ -460,18 +460,20 @@ export default function Reports() {
                       {report.generatedBy?.name || 'Admin'}
                     </td>
                     <td className="py-3 px-4 text-right">
-                      <div className="flex items-center justify-end gap-2">
+                      <div className="flex items-center justify-end gap-1">
                         <button
                           onClick={() => setViewReport(report)}
-                          className="p-1.5 text-zinc-600 bg-white border border-zinc-200 rounded-md hover:bg-zinc-50 transition-colors"
+                          className="min-w-[40px] min-h-[40px] flex items-center justify-center text-zinc-600 bg-white border border-zinc-200 rounded-lg hover:bg-zinc-50 transition-colors cursor-pointer"
                           title="View"
+                          aria-label="View report"
                         >
                           <Eye className="w-4 h-4" />
                         </button>
                         <button
                           onClick={(e) => handleDownload(report, e)}
-                          className="p-1.5 text-zinc-600 bg-white border border-zinc-200 rounded-md hover:bg-zinc-50 transition-colors"
+                          className="min-w-[40px] min-h-[40px] flex items-center justify-center text-zinc-600 bg-white border border-zinc-200 rounded-lg hover:bg-zinc-50 transition-colors cursor-pointer"
                           title="Download"
+                          aria-label="Download report"
                         >
                           <Download className="w-4 h-4" />
                         </button>
@@ -480,8 +482,9 @@ export default function Reports() {
                             setDeleteTitle(report.title);
                             setDeleteId(report._id);
                           }}
-                          className="p-1.5 text-red-600 bg-white border border-red-200 rounded-md hover:bg-red-50 transition-colors"
+                          className="min-w-[40px] min-h-[40px] flex items-center justify-center text-rose-600 bg-white border border-rose-200 rounded-lg hover:bg-rose-50 transition-colors cursor-pointer"
                           title="Delete"
+                          aria-label="Delete report"
                         >
                           <Trash2 className="w-4 h-4" />
                         </button>

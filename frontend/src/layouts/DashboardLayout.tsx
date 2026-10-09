@@ -1,7 +1,6 @@
-
 import { useState } from 'react';
 import { Outlet, NavLink, useNavigate } from 'react-router-dom';
-import { LayoutDashboard, Coffee, MonitorPlay, ServerCrash, FileBarChart2, Activity, QrCode, Smartphone, LogOut, Menu, X, Shield } from 'lucide-react';
+import { LayoutDashboard, Coffee, MonitorPlay, ServerCrash, FileBarChart2, QrCode, Smartphone, LogOut, Menu, X, Shield } from 'lucide-react';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 import { useAuth } from '../contexts/AuthContext';
@@ -17,7 +16,7 @@ const navItems = [
   { name: 'Devices', path: '/devices', icon: ServerCrash },
   { name: 'Reports', path: '/reports', icon: FileBarChart2 },
   { name: 'QR Attendance', path: '/attendance-qr', icon: QrCode },
-  { name: 'Iac Mobile', path: '/iac-mobile', icon: Smartphone },
+  { name: 'IAC Mobile', path: '/iac-mobile', icon: Smartphone },
 ];
 
 function getInitials(name?: string) {
@@ -51,38 +50,38 @@ export default function DashboardLayout() {
       {/* Mobile Backdrop */}
       {mobileMenuOpen && (
         <div
-          className="fixed inset-0 z-40 bg-zinc-900/40 backdrop-blur-xs md:hidden"
+          className="fixed inset-0 z-40 bg-zinc-900/40 md:hidden"
           onClick={() => setMobileMenuOpen(false)}
         />
       )}
 
-      {/* Sidebar Navigation */}
+      {/* Sidebar Navigation (Drawer on mobile, fixed on desktop) */}
       <nav
         className={cn(
-          "fixed md:static inset-y-0 left-0 z-50 w-72 border-r border-zinc-200/80 bg-white md:bg-white/70 backdrop-blur-xl flex flex-col justify-between transition-transform duration-200 ease-in-out shrink-0",
+          "fixed md:static inset-y-0 left-0 z-50 w-72 border-r border-zinc-200 bg-white flex flex-col justify-between transition-transform duration-200 ease-in-out shrink-0 pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)]",
           mobileMenuOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0"
         )}
       >
         <div className="flex flex-col flex-1 overflow-y-auto">
           {/* Brand Header */}
-          <div className="px-6 pt-7 pb-6 flex items-center justify-between">
+          <div className="px-6 pt-6 pb-4 flex items-center justify-between border-b border-zinc-100">
             <div className="flex items-center gap-3">
-              <div className="w-9 h-9 bg-zinc-900 rounded-xl flex items-center justify-center shadow-md shadow-zinc-900/10">
-                <Activity className="w-5 h-5 text-amber-400" />
+              <div className="w-9 h-9 bg-zinc-900 rounded-lg flex items-center justify-center text-amber-400 font-bold text-xs">
+                IAC
               </div>
               <div>
-                <h1 className="text-base font-bold text-zinc-900 tracking-tight leading-tight">
-                  IAC Manager
+                <h1 className="text-sm font-bold text-zinc-900 tracking-tight leading-tight">
+                  IAC Management
                 </h1>
-                <p className="text-[11px] font-semibold text-zinc-400 uppercase tracking-wider">
-                  Command Center
+                <p className="text-[11px] font-medium text-zinc-400">
+                  Operations Portal
                 </p>
               </div>
             </div>
             <button
               type="button"
               onClick={() => setMobileMenuOpen(false)}
-              className="p-1.5 rounded-lg text-zinc-400 hover:text-zinc-600 hover:bg-zinc-100 md:hidden"
+              className="min-w-[44px] min-h-[44px] flex items-center justify-center rounded-lg text-zinc-400 hover:text-zinc-600 hover:bg-zinc-100 md:hidden cursor-pointer"
               aria-label="Close menu"
             >
               <X className="w-5 h-5" />
@@ -90,7 +89,7 @@ export default function DashboardLayout() {
           </div>
 
           {/* Navigation Links */}
-          <div className="px-3.5 space-y-1">
+          <div className="p-3 space-y-1">
             {navItems.map((item) => {
               const Icon = item.icon;
               return (
@@ -99,13 +98,13 @@ export default function DashboardLayout() {
                   to={item.path}
                   onClick={() => setMobileMenuOpen(false)}
                   className={({ isActive }) => cn(
-                    "group flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm font-medium transition-all duration-150",
+                    "min-h-[44px] flex items-center gap-3 px-3.5 py-2.5 rounded-lg text-sm font-medium transition-colors cursor-pointer",
                     isActive
-                      ? "bg-zinc-900 text-white shadow-sm shadow-zinc-900/10 font-semibold"
-                      : "text-zinc-600 hover:bg-zinc-100/80 hover:text-zinc-900"
+                      ? "bg-zinc-900 text-white font-semibold"
+                      : "text-zinc-600 hover:bg-zinc-100 hover:text-zinc-900"
                   )}
                 >
-                  <Icon className={cn("w-4 h-4 transition-transform duration-150 group-hover:scale-110", "opacity-80")} />
+                  <Icon className="w-4 h-4 opacity-80 shrink-0" />
                   <span>{item.name}</span>
                 </NavLink>
               );
@@ -114,9 +113,9 @@ export default function DashboardLayout() {
         </div>
 
         {/* User profile & Logout area */}
-        <div className="p-4 border-t border-zinc-200/80 bg-zinc-50/80">
-          <div className="flex items-center gap-3 p-2.5 rounded-xl bg-white border border-zinc-200/90 shadow-2xs mb-2.5">
-            <div className="w-9 h-9 rounded-lg bg-amber-500/10 border border-amber-500/25 flex items-center justify-center text-amber-700 font-bold text-xs shrink-0">
+        <div className="p-4 border-t border-zinc-200 bg-zinc-50">
+          <div className="flex items-center gap-3 p-2.5 rounded-lg bg-white border border-zinc-200 mb-2.5">
+            <div className="w-9 h-9 rounded-lg bg-zinc-100 border border-zinc-200 flex items-center justify-center text-zinc-700 font-bold text-xs shrink-0">
               {getInitials(user?.name)}
             </div>
             <div className="flex-1 min-w-0">
@@ -124,7 +123,7 @@ export default function DashboardLayout() {
                 <p className="font-semibold text-zinc-900 text-xs truncate">
                   {user?.name || 'Administrator'}
                 </p>
-                <span className="text-[9px] uppercase font-bold tracking-wider px-1.5 py-0.5 rounded bg-amber-50 text-amber-800 border border-amber-200/70 inline-flex items-center gap-0.5">
+                <span className="text-[9px] uppercase font-bold tracking-wider px-1.5 py-0.5 rounded bg-zinc-100 text-zinc-700 border border-zinc-200 inline-flex items-center gap-0.5">
                   <Shield className="w-2.5 h-2.5" />
                   {user?.role || 'Admin'}
                 </span>
@@ -139,8 +138,7 @@ export default function DashboardLayout() {
             type="button"
             onClick={handleLogout}
             disabled={isLoggingOut}
-            className="w-full flex items-center justify-center gap-2 px-3 py-2 rounded-xl text-xs font-bold text-rose-700 hover:text-rose-800 bg-rose-50 hover:bg-rose-100 border border-rose-200/80 transition-all duration-150 cursor-pointer disabled:opacity-50 shadow-2xs"
-            title="Sign out of administrative portal"
+            className="w-full min-h-[44px] flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-xs font-bold text-rose-700 hover:text-rose-800 bg-rose-50 hover:bg-rose-100 border border-rose-200 transition-colors cursor-pointer disabled:opacity-50"
           >
             <LogOut className="w-3.5 h-3.5 text-rose-600" />
             <span>{isLoggingOut ? 'Signing out...' : 'Log Out'}</span>
@@ -151,27 +149,24 @@ export default function DashboardLayout() {
       {/* Main Content Area */}
       <div className="flex-1 flex flex-col min-w-0 h-screen overflow-hidden">
         {/* Top Header Bar */}
-        <header className="h-14 border-b border-zinc-200/80 bg-white/70 backdrop-blur-md px-4 sm:px-8 flex items-center justify-between shrink-0">
+        <header className="min-h-[56px] border-b border-zinc-200 bg-white px-4 sm:px-6 flex items-center justify-between shrink-0 pt-[env(safe-area-inset-top)]">
           <div className="flex items-center gap-3">
             <button
               type="button"
               onClick={() => setMobileMenuOpen(true)}
-              className="p-1.5 rounded-lg text-zinc-600 hover:text-zinc-900 hover:bg-zinc-100 md:hidden"
+              className="min-w-[44px] min-h-[44px] flex items-center justify-center rounded-lg text-zinc-600 hover:text-zinc-900 hover:bg-zinc-100 md:hidden cursor-pointer"
               aria-label="Open navigation menu"
             >
               <Menu className="w-5 h-5" />
             </button>
-            <div className="hidden sm:flex items-center gap-2 text-xs text-zinc-500 font-medium">
-              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-              <span>System Online</span>
-              <span className="text-zinc-300">•</span>
-              <span className="text-zinc-400">Authenticated Session</span>
+            <div className="text-sm font-bold text-zinc-900 md:hidden">
+              IAC Management
             </div>
           </div>
 
           <div className="flex items-center gap-2 sm:gap-3">
             <div className="hidden sm:flex flex-col text-right">
-              <span className="text-xs font-bold text-zinc-900 leading-tight">
+              <span className="text-xs font-semibold text-zinc-900 leading-tight">
                 {user?.name || 'Administrator'}
               </span>
               <span className="text-[10px] text-zinc-400 leading-tight">
@@ -182,21 +177,75 @@ export default function DashboardLayout() {
               type="button"
               onClick={handleLogout}
               disabled={isLoggingOut}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold text-zinc-700 hover:text-rose-700 hover:bg-rose-50 border border-zinc-200 hover:border-rose-200 transition-colors cursor-pointer"
+              className="min-h-[40px] flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-zinc-700 hover:text-rose-700 hover:bg-rose-50 border border-zinc-200 hover:border-rose-200 transition-colors cursor-pointer"
               title="Sign out of account"
             >
-              <LogOut className="w-3.5 h-3.5 text-zinc-500 group-hover:text-rose-600" />
+              <LogOut className="w-3.5 h-3.5 text-zinc-500" />
               <span className="hidden xs:inline">{isLoggingOut ? 'Signing out...' : 'Log Out'}</span>
             </button>
           </div>
         </header>
 
         {/* Routed Page Content */}
-        <main className="flex-1 overflow-auto bg-zinc-50/50">
-          <div className="max-w-7xl mx-auto w-full h-full p-4 sm:p-6 lg:p-8">
+        <main className="flex-1 overflow-auto bg-zinc-50 pb-[calc(env(safe-area-inset-bottom)+4.5rem)] md:pb-[env(safe-area-inset-bottom)]">
+          <div className="max-w-7xl mx-auto w-full p-4 sm:p-6 lg:p-8">
             <Outlet />
           </div>
         </main>
+
+        {/* Mobile Bottom Navigation Bar (Screens < 768px) */}
+        <div className="md:hidden fixed bottom-0 left-0 right-0 z-30 bg-white border-t border-zinc-200 pb-[env(safe-area-inset-bottom)] shadow-md">
+          <div className="grid grid-cols-5 h-14">
+            <NavLink
+              to="/"
+              className={({ isActive }) => cn(
+                "flex flex-col items-center justify-center text-[10px] font-medium transition-colors min-h-[48px]",
+                isActive ? "text-zinc-900 font-bold" : "text-zinc-500 hover:text-zinc-900"
+              )}
+            >
+              <LayoutDashboard className="w-4 h-4 mb-0.5" />
+              <span>Overview</span>
+            </NavLink>
+            <NavLink
+              to="/lounge"
+              className={({ isActive }) => cn(
+                "flex flex-col items-center justify-center text-[10px] font-medium transition-colors min-h-[48px]",
+                isActive ? "text-zinc-900 font-bold" : "text-zinc-500 hover:text-zinc-900"
+              )}
+            >
+              <Coffee className="w-4 h-4 mb-0.5" />
+              <span>Lounge</span>
+            </NavLink>
+            <NavLink
+              to="/rooms"
+              className={({ isActive }) => cn(
+                "flex flex-col items-center justify-center text-[10px] font-medium transition-colors min-h-[48px]",
+                isActive ? "text-zinc-900 font-bold" : "text-zinc-500 hover:text-zinc-900"
+              )}
+            >
+              <MonitorPlay className="w-4 h-4 mb-0.5" />
+              <span>Rooms</span>
+            </NavLink>
+            <NavLink
+              to="/devices"
+              className={({ isActive }) => cn(
+                "flex flex-col items-center justify-center text-[10px] font-medium transition-colors min-h-[48px]",
+                isActive ? "text-zinc-900 font-bold" : "text-zinc-500 hover:text-zinc-900"
+              )}
+            >
+              <ServerCrash className="w-4 h-4 mb-0.5" />
+              <span>Devices</span>
+            </NavLink>
+            <button
+              type="button"
+              onClick={() => setMobileMenuOpen(true)}
+              className="flex flex-col items-center justify-center text-[10px] font-medium text-zinc-500 hover:text-zinc-900 min-h-[48px] cursor-pointer"
+            >
+              <Menu className="w-4 h-4 mb-0.5" />
+              <span>More</span>
+            </button>
+          </div>
+        </div>
       </div>
     </div>
   );

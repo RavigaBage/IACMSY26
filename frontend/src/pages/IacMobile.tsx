@@ -19,9 +19,7 @@ import {
   Server,
   Key,
   Check,
-  Sparkles,
   QrCode,
-  UserCheck,
   Bell,
 } from 'lucide-react';
 
@@ -104,7 +102,7 @@ interface AdminNotification {
 
 export default function IacMobile() {
   const [activeTab, setActiveTab] = useState<
-    'checkins' | 'bookings' | 'issues' | 'announcements' | 'smtp' | 'simulator'
+    'checkins' | 'bookings' | 'issues' | 'announcements' | 'smtp'
   >('checkins');
 
   // Notification state
@@ -151,20 +149,6 @@ export default function IacMobile() {
   const [testEmailAddress, setTestEmailAddress] = useState<string>('');
   const [testEmailLoading, setTestEmailLoading] = useState<boolean>(false);
 
-  // Mobile App Simulator State
-  const [simUserId] = useState<string>('sim_user_99');
-  const [simUserName, setSimUserName] = useState<string>('Alex Johnson');
-  const [simUserEmail, setSimUserEmail] = useState<string>('alex.johnson@example.com');
-  const [simTicket, setSimTicket] = useState<CheckinTicket | null>(null);
-  const [simNewIssueDesc, setSimNewIssueDesc] = useState<string>('');
-  const [simNewIssueCat, setSimNewIssueCat] = useState<Issue['category']>('General');
-  const [simBookingRoom, setSimBookingRoom] = useState<string>('3');
-  const [simBookingDate, setSimBookingDate] = useState<string>(
-    new Date().toISOString().split('T')[0]
-  );
-  const [simBookingSlot, setSimBookingSlot] = useState<string>('09:00 - 10:00');
-  const [simBookingProgram, setSimBookingProgram] = useState<string>('Study Session');
-
   // Global UI alerts
   const [alert, setAlert] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
   const [loading, setLoading] = useState<boolean>(false);
@@ -200,7 +184,7 @@ export default function IacMobile() {
       const [ticketResult, bookingResult, issueResult] = await Promise.allSettled([
         api.get('/api/iac-mobile/checkin-tickets'),
         api.get('/api/iac-mobile/booking-requests'),
-        api.get(`/api/iac-mobile/issues?mobileUserId=${simUserId}`),
+        api.get('/api/iac-mobile/issues'),
       ]);
 
       if (ticketResult.status === 'fulfilled' && ticketResult.value) {
@@ -293,15 +277,12 @@ export default function IacMobile() {
           }
         }
       }
-    } catch (err: any) {
-      const msg = err?.message || String(err);
-      if (!msg.includes('<!DOCTYPE') && !msg.includes('<body') && !msg.includes('Unexpected token')) {
-        console.warn('Error fetching IAC mobile data:', msg);
-      }
+    } catch {
+      // Handled silently
     } finally {
       if (isManual) setLoading(false);
     }
-  }, [simUserId]);
+  }, []);
 
   // Real-time polling effect (15 second interval, active only when tab is visible)
   useEffect(() => {
@@ -413,7 +394,7 @@ export default function IacMobile() {
   const handleVoteIssue = async (issueId: string, direction: 'up' | 'down') => {
     try {
       await api.post(`/api/iac-mobile/issues/${issueId}/vote`, {
-        mobileUserId: simUserId,
+        mobileUserId: 'admin',
         direction,
       });
 
@@ -492,62 +473,6 @@ export default function IacMobile() {
       showAlert('error', err.message || 'Test email failed');
     } finally {
       setTestEmailLoading(false);
-    }
-  };
-
-  // Simulator User Actions
-  const handleSimRequestCheckin = async () => {
-    try {
-      const ticketData = await api.post('/api/iac-mobile/checkin-tickets', {
-        mobileUserId: simUserId,
-        mobileUserName: simUserName,
-        mobileUserEmail: simUserEmail,
-      });
-
-      setSimTicket(ticketData);
-      showAlert('success', `Pass created with code ${ticketData.ticketCode}! Visible in Admin Queue.`);
-      fetchData();
-    } catch (err: any) {
-      showAlert('error', err.message || 'Check-in request failed');
-    }
-  };
-
-  const handleSimSubmitIssue = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!simNewIssueDesc) return;
-    try {
-      await api.post('/api/iac-mobile/issues', {
-        reporterId: simUserId,
-        reporterName: simUserName,
-        category: simNewIssueCat,
-        description: simNewIssueDesc,
-      });
-
-      setSimNewIssueDesc('');
-      showAlert('success', 'Issue posted to the IAC mobile community board!');
-      fetchData();
-    } catch (err: any) {
-      showAlert('error', err.message || 'Failed to submit issue');
-    }
-  };
-
-  const handleSimSubmitBooking = async (e: React.FormEvent) => {
-    e.preventDefault();
-    try {
-      await api.post('/api/iac-mobile/booking-requests', {
-        mobileUserId: simUserId,
-        mobileUserName: simUserName,
-        contactEmail: simUserEmail,
-        roomNumber: simBookingRoom,
-        requestedDate: simBookingDate,
-        requestedSlot: simBookingSlot,
-        programName: simBookingProgram,
-      });
-
-      showAlert('success', 'Booking request submitted to admin review queue!');
-      fetchData();
-    } catch (err: any) {
-      showAlert('error', err.message || 'Booking request failed');
     }
   };
 
@@ -680,7 +605,6 @@ export default function IacMobile() {
           { id: 'issues', label: 'Issues Board', icon: AlertTriangle, badge: issues.filter((i) => i.status === 'pending').length },
           { id: 'announcements', label: 'Announcements', icon: Megaphone, badge: announcements.length },
           { id: 'smtp', label: 'Email & SMTP', icon: Mail },
-          { id: 'simulator', label: 'App Simulator', icon: Sparkles },
         ].map((tab) => {
           const Icon = tab.icon;
           const isActive = activeTab === tab.id;
@@ -746,11 +670,11 @@ export default function IacMobile() {
 
           {filteredTickets.length === 0 ? (
             <div className="bg-white rounded-2xl border border-zinc-200/80 p-12 text-center">
-              <UserCheck className="w-12 h-12 text-zinc-300 mx-auto mb-3" />
-              <h3 className="text-base font-semibold text-zinc-800">No Check-in Tickets Found</h3>
+              <QrCode className="w-12 h-12 text-zinc-300 mx-auto mb-3" />
+              <h3 className="text-base font-semibold text-zinc-800">No Check-in Tickets</h3>
               <p className="text-xs text-zinc-500 mt-1 max-w-sm mx-auto">
                 {ticketFilter === 'pending'
-                  ? 'All pending mobile passes have been verified! Use the Simulator tab to test creating a pass.'
+                  ? 'All pending mobile passes have been processed.'
                   : 'No tickets registered in the database yet.'}
               </p>
             </div>
@@ -1494,193 +1418,6 @@ export default function IacMobile() {
                   <Send className={`w-3.5 h-3.5 ${testEmailLoading ? 'animate-bounce' : ''}`} />
                   {testEmailLoading ? 'Sending...' : 'Send Test Mail'}
                 </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* TAB 6: MOBILE APP SIMULATOR / TESTER */}
-      {activeTab === 'simulator' && (
-        <div className="space-y-6">
-          <div className="bg-white p-4 rounded-2xl border border-zinc-200/80 shadow-sm flex flex-col sm:flex-row items-center justify-between gap-4">
-            <div>
-              <div className="flex items-center gap-2">
-                <span className="w-2.5 h-2.5 rounded-full bg-amber-400"></span>
-                <h2 className="text-lg font-bold text-zinc-900">IAC Mobile App (White &amp; Yellow Edition)</h2>
-              </div>
-              <p className="text-xs text-zinc-500 mt-0.5">
-                5-Screen Mobile Architecture: Home, Check-In, Bookings, Facility Help / Issues, and Member Profile.
-              </p>
-            </div>
-            <div className="flex flex-wrap items-center gap-2">
-              <div className="flex items-center gap-1.5 bg-zinc-50 px-2 py-1 rounded-xl border border-zinc-200 text-xs">
-                <span className="text-zinc-500 font-medium">Test User:</span>
-                <input
-                  type="text"
-                  value={simUserName}
-                  onChange={(e) => setSimUserName(e.target.value)}
-                  className="w-24 p-1 rounded border border-zinc-300 font-medium bg-white text-xs"
-                />
-                <input
-                  type="email"
-                  value={simUserEmail}
-                  onChange={(e) => setSimUserEmail(e.target.value)}
-                  className="w-36 p-1 rounded border border-zinc-300 font-medium bg-white text-xs"
-                />
-              </div>
-              <a
-                href="/iacmobile-app/"
-                target="_blank"
-                rel="noreferrer"
-                className="px-4 py-2 text-xs font-bold bg-amber-400 text-zinc-900 hover:bg-amber-500 rounded-xl transition-all shadow-sm flex items-center gap-1.5"
-              >
-                <span>Open Fullscreen Mobile Web</span>
-                <span className="text-xs">↗</span>
-              </a>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-            {/* Phone Device Frame */}
-            <div className="lg:col-span-6 xl:col-span-5 flex justify-center">
-              <div className="w-full max-w-[390px] bg-zinc-950 rounded-[44px] p-3 shadow-2xl border-4 border-zinc-800">
-                {/* Notch */}
-                <div className="w-28 h-4 bg-zinc-900 mx-auto rounded-b-xl mb-2 flex items-center justify-center">
-                  <div className="w-8 h-1 bg-zinc-700 rounded-full" />
-                </div>
-
-                {/* Live Mobile Screen running the white & yellow app */}
-                <div className="bg-white rounded-[28px] overflow-hidden shadow-inner flex flex-col">
-                  <iframe
-                    src="/iacmobile-app/"
-                    title="IAC Mobile Preview"
-                    className="w-full h-[640px] border-none bg-white"
-                  />
-                </div>
-              </div>
-            </div>
-
-            {/* Interactive Forms & Test Triggers */}
-            <div className="lg:col-span-6 xl:col-span-7 space-y-4">
-              {/* Checkin Trigger Card */}
-              <div className="bg-white p-5 rounded-2xl border border-zinc-200 shadow-sm space-y-3">
-                <div className="flex items-center justify-between">
-                  <h3 className="font-bold text-sm text-zinc-900 flex items-center gap-2">
-                    <UserCheck className="w-4 h-4 text-amber-500" /> Fast Digital Pass Generator
-                  </h3>
-                  <button
-                    onClick={handleSimRequestCheckin}
-                    className="px-3 py-1.5 text-xs font-bold bg-amber-400 text-zinc-900 rounded-lg hover:bg-amber-500"
-                  >
-                    Generate Pass
-                  </button>
-                </div>
-                {simTicket ? (
-                  <div className="bg-amber-50 p-2.5 rounded-lg border border-amber-200 text-center space-y-1">
-                    <span className="text-[10px] text-amber-700 block font-bold">LATEST GENERATED TICKET</span>
-                    <span className="text-base font-extrabold font-mono text-zinc-900 tracking-wider">
-                      {simTicket.ticketCode}
-                    </span>
-                    <span className="text-[10px] block font-semibold text-emerald-700 capitalize">
-                      Status: {simTicket.status}
-                    </span>
-                  </div>
-                ) : (
-                  <p className="text-xs text-zinc-500">Generates a live check-in pass for {simUserName} into the real database queue.</p>
-                )}
-              </div>
-
-              {/* Report Issue Form */}
-              <div className="bg-white p-5 rounded-2xl border border-zinc-200 shadow-sm space-y-3">
-                <h3 className="font-bold text-sm text-zinc-900 flex items-center gap-2">
-                  <AlertTriangle className="w-4 h-4 text-amber-500" /> Post Community Report
-                </h3>
-                <form onSubmit={handleSimSubmitIssue} className="space-y-3 text-xs">
-                  <div>
-                    <label className="font-medium text-zinc-600 block mb-1">Category</label>
-                    <select
-                      value={simNewIssueCat}
-                      onChange={(e) => setSimNewIssueCat(e.target.value as any)}
-                      className="w-full p-2 rounded-lg border border-zinc-200 bg-zinc-50"
-                    >
-                      <option value="General">General</option>
-                      <option value="Equipment">Equipment</option>
-                      <option value="Facility">Facility</option>
-                      <option value="Software">Software</option>
-                      <option value="Cleanliness">Cleanliness</option>
-                    </select>
-                  </div>
-                  <div>
-                    <label className="font-medium text-zinc-600 block mb-1">Description</label>
-                    <textarea
-                      value={simNewIssueDesc}
-                      onChange={(e) => setSimNewIssueDesc(e.target.value)}
-                      placeholder="e.g. Lounge Workstation #4 headphone jack loose"
-                      rows={2}
-                      className="w-full p-2 rounded-lg border border-zinc-200 bg-zinc-50"
-                    />
-                  </div>
-                  <button
-                    type="submit"
-                    className="px-4 py-2 bg-amber-400 text-zinc-900 font-bold rounded-lg hover:bg-amber-500"
-                  >
-                    Post Issue
-                  </button>
-                </form>
-              </div>
-
-              {/* Booking Request Form */}
-              <div className="bg-white p-5 rounded-2xl border border-zinc-200 shadow-sm space-y-3">
-                <h3 className="font-bold text-sm text-zinc-900 flex items-center gap-2">
-                  <Calendar className="w-4 h-4 text-amber-500" /> Test Room Booking Submission
-                </h3>
-                <form onSubmit={handleSimSubmitBooking} className="space-y-3 text-xs">
-                  <div className="grid grid-cols-2 gap-3 text-xs">
-                    <div>
-                      <label className="font-medium text-zinc-600 block mb-1">Room Number</label>
-                      <input
-                        type="text"
-                        value={simBookingRoom}
-                        onChange={(e) => setSimBookingRoom(e.target.value)}
-                        className="w-full p-2 rounded-lg border border-zinc-200 bg-zinc-50"
-                      />
-                    </div>
-                    <div>
-                      <label className="font-medium text-zinc-600 block mb-1">Time Slot</label>
-                      <input
-                        type="text"
-                        value={simBookingSlot}
-                        onChange={(e) => setSimBookingSlot(e.target.value)}
-                        className="w-full p-2 rounded-lg border border-zinc-200 bg-zinc-50"
-                      />
-                    </div>
-                    <div>
-                      <label className="font-medium text-zinc-600 block mb-1">Program Name</label>
-                      <input
-                        type="text"
-                        value={simBookingProgram}
-                        onChange={(e) => setSimBookingProgram(e.target.value)}
-                        className="w-full p-2 rounded-lg border border-zinc-200 bg-zinc-50"
-                      />
-                    </div>
-                    <div>
-                      <label className="font-medium text-zinc-600 block mb-1">Date</label>
-                      <input
-                        type="date"
-                        value={simBookingDate}
-                        onChange={(e) => setSimBookingDate(e.target.value)}
-                        className="w-full p-2 rounded-lg border border-zinc-200 bg-zinc-50"
-                      />
-                    </div>
-                  </div>
-                  <button
-                    type="submit"
-                    className="px-4 py-2 bg-amber-400 text-zinc-900 font-bold rounded-lg hover:bg-amber-500"
-                  >
-                    Submit Booking Request
-                  </button>
-                </form>
               </div>
             </div>
           </div>
