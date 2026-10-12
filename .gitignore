@@ -19,3 +19,8 @@ frontend/.vite
 *.jks
 keystore.properties
 /release
+
+# Keep the lowercase laboratory agent source and deployment tools in version control.
+!agent/
+!agent/**
+agent/node_modules/

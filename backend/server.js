@@ -16,6 +16,7 @@ const server = http.createServer(app);
 const SocketService = require("./src/services/socketService");
 const {registerAgentService} = require("./src/services/RegisterDevice");
 const { initServices } = require("./src/services");
+const { startPowerScheduler } = require("./src/services/powerScheduler");
 const createProtectedRoutes =require('./src/routes/protected');
 const allowedOrigins = (process.env.CORS_ORIGINS || '')
     .split(',')
@@ -321,6 +322,7 @@ const startServer = async () => {
     await connectDB();
     server.listen(PORT, "0.0.0.0", () => {
         console.log(`🚀 Server running on port ${PORT}`);
+        startPowerScheduler(commandService);
     });
 };
 

@@ -16,6 +16,7 @@ try {
 }
 
 // Ensure a stable unique device identifier across sessions
+const diagnosticMode = process.argv.some(arg => ["--test", "--dry-run", "--check-connection"].includes(arg));
 function getStableDeviceId(configuredId) {
     if (process.env.DEVICE_ID && process.env.DEVICE_ID.trim()) {
         return process.env.DEVICE_ID.trim();
@@ -25,14 +26,16 @@ function getStableDeviceId(configuredId) {
     }
 
     const deviceIdFile = path.join(__dirname, ".device_id");
+    const generatedId = `LAB-${os.hostname().toUpperCase()}`;
+    if (diagnosticMode) return generatedId;
     try {
         if (fs.existsSync(deviceIdFile)) {
             const saved = fs.readFileSync(deviceIdFile, "utf-8").trim();
-            if (saved) return saved;
+            // A copied agent folder must not reuse another PC's generated identity.
+            if (saved && saved === generatedId) return saved;
         }
     } catch {}
 
-    const generatedId = `LAB-${os.hostname().toUpperCase()}`;
     try {
         fs.writeFileSync(deviceIdFile, generatedId, "utf-8");
     } catch {}
@@ -75,6 +78,7 @@ const config = {
         allowRemoteShutdown: baseConfig.permissions?.allowRemoteShutdown ?? true,
         allowRemoteRestart: baseConfig.permissions?.allowRemoteRestart ?? true,
         allowRemoteLock: baseConfig.permissions?.allowRemoteLock ?? true,
+        allowRemoteSleep: baseConfig.permissions?.allowRemoteSleep ?? true,
         allowRemoteMonitoring: baseConfig.permissions?.allowRemoteMonitoring ?? true,
         allowRemoteUpdate: baseConfig.permissions?.allowRemoteUpdate ?? true,
         allowFileTransfer: baseConfig.permissions?.allowFileTransfer ?? false,
@@ -91,6 +95,41 @@ console.log(`📍 Location      : ${config.location} (${config.department})`);
 console.log(`⚡ Simulation Mode: ${config.simulateExecution ? "ON (Safe Test)" : "OFF (Live System Actions)"}`);
 console.log("-------------------------------------------------");
 
+// Verify reachability and Socket.IO authentication without registering a device or running commands.
+if (process.argv.includes("--check-connection")) {
+    try {
+        const parsedServerUrl = new URL(config.serverUrl);
+        if (!["http:", "https:"].includes(parsedServerUrl.protocol)) throw new Error("Use an http:// or https:// URL.");
+    } catch (err) {
+        console.error(`❌ Invalid server URL: ${err.message}`);
+        process.exit(1);
+    }
+    const probe = io(config.serverUrl, {
+        reconnection: false,
+        timeout: 10000,
+        transports: ["websocket", "polling"],
+        auth: { token: config.authToken, deviceId: config.deviceId },
+    });
+    const timeout = setTimeout(() => {
+        console.error(`❌ Timed out connecting to ${config.serverUrl}`);
+        probe.disconnect();
+        process.exit(1);
+    }, 12000);
+    probe.once("connect", () => {
+        clearTimeout(timeout);
+        console.log(`✅ Socket.IO connection and authentication succeeded (${probe.id}).`);
+        probe.disconnect();
+        process.exit(0);
+    });
+    probe.once("connect_error", (err) => {
+        clearTimeout(timeout);
+        console.error(`❌ Could not connect/authenticate with ${config.serverUrl}: ${err.message}`);
+        probe.disconnect();
+        process.exit(1);
+    });
+    return;
+}
+
 // Self-Test / Dry-Run CLI mode support
 if (process.argv.includes("--test") || process.argv.includes("--dry-run")) {
     console.log("🧪 Running Agent Self-Diagnostic Test...");
@@ -101,11 +140,25 @@ if (process.argv.includes("--test") || process.argv.includes("--dry-run")) {
     console.log(`  ✓ MAC Address : ${mac || "N/A"}`);
     console.log(`  ✓ OS Platform : ${osType}`);
     const mockSocket = { on: () => {}, emit: () => {} };
-    const mockHandler = new AgentCommandHandler(mockSocket, config);
+    const mockHandler = new AgentCommandHandler(mockSocket, { ...config, simulateExecution: true });
     mockHandler.register();
-    console.log("  ✓ Command handler registered with allowlisted commands");
-    console.log("🎉 Self-diagnostic test PASSED successfully!");
-    process.exit(0);
+    mockHandler.execute({ type: "SYSTEM_SLEEP", commandId: "self-test", payload: { parameters: { graceSeconds: 0 } } })
+        .then(result => {
+            if (!result.simulated) throw new Error("Sleep command did not stay in simulation mode.");
+            const deniedHandler = new AgentCommandHandler(mockSocket, { ...config, simulateExecution: true, permissions: { ...config.permissions, allowRemoteSleep: false } });
+            return deniedHandler.execute({ type: "SYSTEM_SLEEP", commandId: "self-test-denied" });
+        })
+        .then(() => { throw new Error("Sleep permission check did not reject a disabled command."); })
+        .catch(err => {
+            if (err.message.startsWith("Permission Denied:")) {
+                console.log("  ✓ Sleep command simulation and local permission check passed");
+                console.log("🎉 Self-diagnostic test PASSED successfully!");
+                process.exit(0);
+            }
+            console.error("❌ Self-diagnostic test failed:", err.message);
+            process.exit(1);
+        });
+    return;
 }
 
 // 2. Hardware and Network Introspection
@@ -135,6 +188,21 @@ function getPrimaryMacAddress() {
     return null;
 }
 
+function getPrimaryNetworkInfo() {
+    for (const entries of Object.values(os.networkInterfaces())) {
+        for (const entry of entries || []) {
+            if (entry.family !== "IPv4" || entry.internal || !entry.netmask) continue;
+            const ip = entry.address.split(".").map(Number);
+            const mask = entry.netmask.split(".").map(Number);
+            const prefix = mask.reduce((sum, octet) => sum + octet.toString(2).replace(/0/g, "").length, 0);
+            const network = ip.map((octet, index) => octet & mask[index]).join(".");
+            const broadcast = ip.map((octet, index) => (octet & mask[index]) | (255 ^ mask[index])).join(".");
+            return { macAddress: entry.mac || getPrimaryMacAddress(), networkSubnet: `${network}/${prefix}`, broadcastAddress: broadcast };
+        }
+    }
+    return { macAddress: getPrimaryMacAddress(), networkSubnet: "", broadcastAddress: "255.255.255.255" };
+}
+
 function getOperatingSystem() {
     const platform = process.platform;
     const release = os.release();
@@ -149,6 +217,7 @@ function getOperatingSystem() {
 // 3. Build Registration Payload matching IACMSY26 Backend Device Schema
 function buildRegistrationPayload(socketId) {
     const primaryIp = getPrimaryIpAddress();
+    const network = getPrimaryNetworkInfo();
     return {
         deviceId: config.deviceId,
         socketId: socketId,
@@ -156,6 +225,7 @@ function buildRegistrationPayload(socketId) {
         hostname: os.hostname(),
         ipAddress: primaryIp,
         macAddress: getPrimaryMacAddress(),
+        ...network,
         operatingSystem: getOperatingSystem(),
         platform: getOperatingSystem(),
         department: config.department,

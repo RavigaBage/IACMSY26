@@ -127,9 +127,10 @@ class CommandDispatcher {
                             targetId: target._id?.toString()
                         };
 
-                        this.socketService.emitToDevice(targetRoom, "device:command", cmdPayload);
-
+                        // Persist SENT before emitting. A fast agent can ACK/complete in the same
+                        // event loop turn; writing SENT after emit could overwrite that response.
                         await this.repo.markSent(target._id, "SENT");
+                        this.socketService.emitToDevice(targetRoom, "device:command", cmdPayload);
                     } else {
                         console.warn("Device room not found for target:", target.deviceId);
                         await this.repo.markOffline(target._id, "Device record not found");

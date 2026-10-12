@@ -17,6 +17,7 @@
     "allowRemoteShutdown": true,
     "allowRemoteRestart": true,
     "allowRemoteLock": true,
+    "allowRemoteSleep": true,
     "allowRemoteMonitoring": true,
     "allowRemoteUpdate": true,
     "allowFileTransfer": false

@@ -24,6 +24,7 @@ function createProtectedRoutes(commandService,dispatcher) {
 
     // inject commandService here
     router.use('/iac/devices', InitiateService_route(commandService));
+    router.use('/iac/power', require('./urls/powerManagement'));
 
     router.use('/users', loungeRouter);
     router.use('/bookings', EventProgamRouter);

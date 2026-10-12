@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { ServerCrash, Loader2, Plus, X, RefreshCw, Power, LogOut, MonitorPlay, AlertCircle, Edit2, Trash2, Download } from 'lucide-react';
+import { ServerCrash, Loader2, Plus, X, MonitorPlay, AlertCircle, Edit2, Trash2, ChevronDown, Command, Moon, Sun, Zap } from 'lucide-react';
 import { api } from '../lib/api';
 import { useToast } from '../contexts/ToastContext';
 import { ConfirmModal } from '../components/ui/ConfirmModal';
@@ -7,6 +7,8 @@ import { Pagination } from '../components/ui/Pagination';
 import { formatDistanceToNow } from 'date-fns';
 import { useCrud } from '../hooks/useCrud';
 import { useFuzzySearch } from '../hooks/useFuzzySearch';
+import { PowerManagement } from '../components/PowerManagement';
+import { useAuth } from '../contexts/AuthContext';
 
 interface Device {
   _id: string;
@@ -14,6 +16,8 @@ interface Device {
   operatingSystem: string;
   ipAddress: string;
   location: string;
+  macAddress?: string;
+  networkSubnet?: string;
   status: {
     remoteAgent: 'waiting' | 'active' | 'offline';
   };
@@ -86,13 +90,15 @@ export default function Devices() {
 
   // Modal State for Remote Control & Delete
   const [modalAction, setModalAction] = useState<{
-    type: 'shutdown' | 'restart' | 'logoff' | 'system_update' | 'delete', 
+    type: 'shutdown' | 'restart' | 'logoff' | 'system_update' | 'sleep' | 'wake' | 'delete',
     title: string, 
     message: string, 
     ids: string[]
   } | null>(null);
 
   const { success, error, toast } = useToast();
+  const { user } = useAuth();
+  const [selectedCommand, setSelectedCommand] = useState('');
 
   useEffect(() => {
     fetchDevices();
@@ -170,9 +176,22 @@ export default function Devices() {
     setSelectedIds(next);
   };
 
-  const requestAction = (type: 'shutdown' | 'restart' | 'logoff' | 'system_update', title: string, message: string) => {
-    if (selectedIds.size === 0) return;
-    setModalAction({ type, title, message, ids: Array.from(selectedIds) });
+  const requestCommand = () => {
+    if (!selectedCommand || selectedIds.size === 0) return;
+    if (selectedCommand === 'device-Status') {
+      void checkStatus();
+      return;
+    }
+    const details: Record<string, { title: string; message: string }> = {
+      restart: { title: 'Restart selected computers', message: `Restart ${selectedIds.size} selected computer(s)? Any unsaved work may be lost.` },
+      shutdown: { title: 'Shut down selected computers', message: `Shut down ${selectedIds.size} selected computer(s)? Any unsaved work may be lost.` },
+      logoff: { title: 'Log off selected users', message: `Log off users on ${selectedIds.size} selected computer(s)? Any unsaved work may be lost.` },
+      system_update: { title: 'Apply updates', message: `Check and apply system updates to ${selectedIds.size} selected computer(s)?` },
+      sleep: { title: 'Sleep selected computers', message: `Send a sleep warning to ${selectedIds.size} selected computer(s). They will sleep after 30 seconds, and computers with an active user session will be skipped.` },
+      wake: { title: 'Wake selected computers', message: `Send Wake-on-LAN packets to ${selectedIds.size} selected computer(s)?` },
+    };
+    const detailsForCommand = details[selectedCommand];
+    if (detailsForCommand) setModalAction({ type: selectedCommand as 'shutdown' | 'restart' | 'logoff' | 'system_update' | 'sleep' | 'wake', ...detailsForCommand, ids: Array.from(selectedIds) });
   };
 
   const requestDelete = (device: Device, e: React.MouseEvent) => {
@@ -203,8 +222,19 @@ export default function Devices() {
     try {
       setActionLoading(type);
       toast(`Sending ${type} command...`, 'info');
-      await api.post(`api/iac/devices/${type}`, { deviceIds: ids });
-      success(`Command ${type} executed successfully`);
+      if (type === 'sleep') {
+        await api.post('/api/iac/power/sleep', { deviceIds: ids, graceSeconds: 30, skipIfActiveSession: true });
+        success('Sleep warning sent to selected computers.');
+      } else if (type === 'wake') {
+        const result = await api.post('/api/iac/power/wake', { deviceIds: ids });
+        const sent = result?.results?.filter((item: any) => item.status === 'sent').length || 0;
+        success(`Wake packet sent to ${sent} of ${ids.length} selected computers.`);
+        const failed = result?.results?.filter((item: any) => item.status === 'failed') || [];
+        if (failed.length) error(failed.map((item: any) => `${item.deviceName}: ${item.error}`).join(' '));
+      } else {
+        await api.post(`api/iac/devices/${type}`, { deviceIds: ids });
+        success(`Command ${type} sent successfully.`);
+      }
       setSelectedIds(new Set()); // clear selection
       await fetchDevices();
     } catch {
@@ -238,9 +268,9 @@ export default function Devices() {
         onConfirm={executeModalAction}
         title={modalAction?.title || ''}
         message={modalAction?.message || ''}
-        confirmText={modalAction?.type === 'delete' ? 'Delete' : 'Confirm'}
+        confirmText={modalAction?.type === 'delete' ? 'Delete' : 'Send command'}
         cancelText="Cancel"
-        isDestructive={modalAction?.type !== 'system_update'}
+        isDestructive={['delete', 'shutdown', 'restart', 'logoff', 'sleep'].includes(modalAction?.type || '')}
       />
 
       <header className="mb-8 flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -256,46 +286,6 @@ export default function Devices() {
         
         <div className="flex items-center gap-2 flex-wrap">
           <button 
-            onClick={() => requestAction('restart', 'Restart Devices', 'Restart selected devices? Any unsaved work will be lost.')}
-            disabled={selectedIds.size === 0 || !!actionLoading}
-            className="px-3 py-2 bg-white text-zinc-700 rounded-lg border border-zinc-200 hover:bg-zinc-50 disabled:opacity-50 text-sm font-medium flex items-center gap-2"
-          >
-            {actionLoading === 'restart' ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
-            Restart
-          </button>
-          <button 
-            onClick={() => requestAction('shutdown', 'Shutdown Devices', 'Shutdown selected devices? Any unsaved work will be lost.')}
-            disabled={selectedIds.size === 0 || !!actionLoading}
-            className="px-3 py-2 bg-white text-red-600 rounded-lg border border-zinc-200 hover:bg-red-50 disabled:opacity-50 text-sm font-medium flex items-center gap-2"
-          >
-            {actionLoading === 'shutdown' ? <Loader2 className="w-4 h-4 animate-spin" /> : <Power className="w-4 h-4" />}
-            Shutdown
-          </button>
-          <button 
-            onClick={() => requestAction('logoff', 'Logoff Users', 'Logoff active users from selected devices? Any unsaved work will be lost.')}
-            disabled={selectedIds.size === 0 || !!actionLoading}
-            className="px-3 py-2 bg-white text-zinc-700 rounded-lg border border-zinc-200 hover:bg-zinc-50 disabled:opacity-50 text-sm font-medium flex items-center gap-2"
-          >
-            {actionLoading === 'logoff' ? <Loader2 className="w-4 h-4 animate-spin" /> : <LogOut className="w-4 h-4" />}
-            Logoff
-          </button>
-          <button 
-            onClick={() => requestAction('system_update', 'Apply Updates', 'Check and apply system updates to selected devices?')}
-            disabled={selectedIds.size === 0 || !!actionLoading}
-            className="px-3 py-2 bg-white text-zinc-700 rounded-lg border border-zinc-200 hover:bg-zinc-50 disabled:opacity-50 text-sm font-medium flex items-center gap-2"
-          >
-            {actionLoading === 'system_update' ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
-            Updates
-          </button>
-          <button 
-            onClick={checkStatus}
-            disabled={selectedIds.size === 0 || !!actionLoading}
-            className="px-3 py-2 bg-zinc-900 text-white rounded-lg hover:bg-zinc-800 disabled:opacity-50 text-sm font-medium flex items-center gap-2"
-          >
-            {actionLoading === 'device-Status' ? <Loader2 className="w-4 h-4 animate-spin" /> : <MonitorPlay className="w-4 h-4" />}
-            Ping
-          </button>
-          <button 
             onClick={() => {
               if (isFormOpen) handleCancelForm();
               else setIsFormOpen(true);
@@ -307,6 +297,45 @@ export default function Devices() {
           </button>
         </div>
       </header>
+
+      <section className="mb-6 rounded-2xl border border-zinc-200/60 bg-white p-4 shadow-sm sm:p-5">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+          <div className="flex items-start gap-3">
+            <div className="rounded-xl bg-zinc-100 p-2.5 text-zinc-700"><Command className="h-5 w-5" /></div>
+            <div>
+              <h2 className="font-semibold text-zinc-900">Device commands</h2>
+              <p className="mt-1 text-sm text-zinc-500">{selectedIds.size ? `${selectedIds.size} computer${selectedIds.size === 1 ? '' : 's'} selected` : 'Select computers from the list, then choose an action.'}</p>
+            </div>
+          </div>
+          <div className="flex flex-col gap-2 sm:flex-row">
+            <div className="relative min-w-0 sm:min-w-[260px]">
+              <select value={selectedCommand} onChange={e => setSelectedCommand(e.target.value)} className="w-full appearance-none rounded-lg border border-zinc-200 bg-white py-2.5 pl-3 pr-10 text-sm font-medium text-zinc-800 outline-none transition focus:border-zinc-400 focus:ring-2 focus:ring-zinc-900/10">
+                <option value="">Choose a command…</option>
+                <optgroup label="Power management">
+                  {user?.role === 'admin' && <option value="sleep">Sleep selected computers</option>}
+                  {user?.role === 'admin' && <option value="wake">Wake selected computers (Wake-on-LAN)</option>}
+                </optgroup>
+                <optgroup label="Remote actions">
+                  <option value="restart">Restart</option>
+                  <option value="shutdown">Shut down</option>
+                  <option value="logoff">Log off users</option>
+                  <option value="system_update">Apply updates</option>
+                  <option value="device-Status">Ping / check status</option>
+                </optgroup>
+              </select>
+              <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-400" />
+            </div>
+            <button type="button" onClick={requestCommand} disabled={!selectedCommand || selectedIds.size === 0 || !!actionLoading} className="inline-flex items-center justify-center gap-2 rounded-lg bg-zinc-900 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-40">
+              {actionLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : selectedCommand === 'sleep' ? <Moon className="h-4 w-4" /> : selectedCommand === 'wake' ? <Sun className="h-4 w-4" /> : selectedCommand === 'device-Status' ? <MonitorPlay className="h-4 w-4" /> : <Zap className="h-4 w-4" />}
+              Run command
+            </button>
+          </div>
+        </div>
+        {selectedCommand === 'sleep' && <p className="mt-3 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-800">Computers receive a 30 second warning. A computer with an active user session will be skipped.</p>}
+        {selectedCommand === 'wake' && <p className="mt-3 rounded-lg bg-sky-50 px-3 py-2 text-xs text-sky-800">Wake-on-LAN requires the computer to be configured for WoL and reachable on its network.</p>}
+      </section>
+
+      {user?.role === 'admin' && <PowerManagement devices={devices} selectedIds={Array.from(selectedIds)} />}
 
       {isFormOpen && (
         <div className="mb-8 bg-white rounded-2xl border border-zinc-200/60 shadow-sm overflow-hidden animate-in slide-in-from-top-4 duration-300">
@@ -480,7 +509,7 @@ export default function Devices() {
                         <div className="text-sm text-zinc-700 font-medium">{device.operatingSystem || 'Unknown'}</div>
                         <div className="text-xs text-zinc-500">{device.location || '-'}</div>
                       </td>
-                      <td className="py-3 px-4 text-sm font-mono text-zinc-600">{device.ipAddress || '-'}</td>
+                      <td className="py-3 px-4 text-sm font-mono text-zinc-600"><div>{device.ipAddress || '-'}</div><div className="mt-1 text-xs text-zinc-400">{device.macAddress || 'MAC pending'}{device.networkSubnet ? ` · ${device.networkSubnet}` : ''}</div></td>
                       <td className="py-3 px-4">
                         {device.status?.remoteAgent === 'active' ? (
                           <span className="inline-flex items-center gap-1.5 px-2 py-1 rounded-md text-xs font-medium bg-emerald-50 text-emerald-700 border border-emerald-200/50">

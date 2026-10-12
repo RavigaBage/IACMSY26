@@ -13,7 +13,6 @@ function InitiateService_route(commandService){
     "deviceName",
     "hostname",
     "ipAddress",
-    "macAddress",
     "operatingSystem",
     "department",
     "location",
@@ -192,7 +191,6 @@ function InitiateService_route(commandService){
           deviceName: req.body.deviceName || "",
           hostname: req.body.hostname || "",
           ipAddress: req.body.ipAddress || "",
-          macAddress: req.body.macAddress || "",
           operatingSystem: req.body.operatingSystem || "",
           department: req.body.department || "",
           location: req.body.location || "",
@@ -211,6 +209,7 @@ function InitiateService_route(commandService){
             allowRemoteRestart:
               req.body.permissions?.allowRemoteRestart ?? true,
             allowRemoteLock: req.body.permissions?.allowRemoteLock ?? true,
+            allowRemoteSleep: req.body.permissions?.allowRemoteSleep ?? true,
             allowRemoteMonitoring:
               req.body.permissions?.allowRemoteMonitoring ?? true,
             allowFileTransfer:

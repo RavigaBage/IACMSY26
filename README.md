@@ -95,6 +95,14 @@ The Windows installer installs the service and preserves an existing machine-spe
 
 The dashboard currently exposes the device's online status and basic identity information. Do not expose the shared agent token in screenshots, support logs, or source control.
 
+### Laboratory power management
+
+Administrators can create recurring sleep schedules, sleep selected online PCs, and send Wake-on-LAN packets from **Device Management**. Schedules use the selected time zone, chosen weekdays, a configurable warning/grace period, active-session checks, and an administrator cancellation setting. Device schedules support all registered computers or an explicit selection; the project does not have a separate device-group model.
+
+The PC agent reports its MAC address, IPv4 subnet, and broadcast address at registration. Keep the agent running as a Windows service (for example, NSSM) and leave `permissions.allowRemoteSleep` enabled on computers that should accept sleep commands. The service uses a non-interactive Windows power API call; when configured to skip active sessions it checks Windows sessions first and attempts to display a warning during the grace period.
+
+Wake-on-LAN sends a UDP magic packet on port 9 from the backend host to each device's saved subnet broadcast. The backend therefore needs network access to the lab broadcast domain; cloud or Docker bridge deployments may require host networking or a site-local relay, and routers commonly block directed broadcasts between VLANs. Wake-on-LAN must also be enabled in the PC firmware and network adapter, and the device must retain standby power. A successful API result means the packet was sent, not that the PC confirmed it woke.
+
 ## Operational notes
 
 - The root `iacmobile-app/`, `frontend/public/iacmobile-app/`, `frontend/public/IACMOBILE APP/`, and attendance-form copies currently contain different content. They are retained rather than deleted or merged; verify behavior before consolidating them.

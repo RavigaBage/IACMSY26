@@ -14,6 +14,14 @@ class CommandService {
         return this.createCommand("SYSTEM_SHUTDOWN", deviceIds, {});
     }
 
+    async sleep(deviceIds, options = {}) {
+        return this.createCommand("SYSTEM_SLEEP", deviceIds, options);
+    }
+
+    async cancelSleep(deviceIds, scheduleId) {
+        return this.createCommand("SYSTEM_SLEEP_CANCEL", deviceIds, { scheduleId });
+    }
+
     async logoff(deviceIds) {
         return this.createCommand("SYSTEM_LOGOFF", deviceIds, {});
     }

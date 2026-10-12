@@ -5,7 +5,8 @@
   "main": "index.js",
   "scripts": {
     "start": "node index.js",
-    "test": "node index.js --test"
+    "test": "node index.js --test",
+    "test:connection": "node index.js --check-connection"
   },
   "keywords": [
     "remote-management",
@@ -17,5 +18,8 @@
   "type": "commonjs",
   "dependencies": {
     "socket.io-client": "^4.8.1"
+  },
+  "engines": {
+    "node": ">=18"
   }
 }

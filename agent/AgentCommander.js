@@ -12,7 +12,9 @@ const ALLOWED_COMMAND_TYPES = new Set([
     "SYSTEM_LOGOFF",
     "LOCK_WORKSTATION",
     "SYSTEM_UPDATE",
-    "REMOTE_CONTROL"
+    "REMOTE_CONTROL",
+    "SYSTEM_SLEEP",
+    "SYSTEM_SLEEP_CANCEL"
 ]);
 
 // Normalization mapping for standard alias names
@@ -30,6 +32,10 @@ const COMMAND_TYPE_ALIASES = {
     "SYSTEM_UPDATE": "SYSTEM_UPDATE",
     "REMOTE_CONTROL": "REMOTE_CONTROL",
     "REMOTE_ASSIST": "REMOTE_CONTROL",
+    "SLEEP": "SYSTEM_SLEEP",
+    "SYSTEM_SLEEP": "SYSTEM_SLEEP",
+    "CANCEL_SLEEP": "SYSTEM_SLEEP_CANCEL",
+    "SYSTEM_SLEEP_CANCEL": "SYSTEM_SLEEP_CANCEL",
 };
 
 class AgentCommandHandler {
@@ -37,6 +43,7 @@ class AgentCommandHandler {
         this.socket = socket;
         this.config = config || {};
         this.serverAssignedId = null;
+        this.sleepTimers = new Map();
     }
 
     setServerAssignedId(id) {
@@ -107,7 +114,7 @@ class AgentCommandHandler {
                 const result = await this.execute(cmd);
 
                 // Step 4: Report COMPLETED status with structured output
-                this.socket.emit("command:complete", {
+                if (!result.completionSent) this.socket.emit("command:complete", {
                     commandId,
                     deviceId,
                     success: true,
@@ -210,6 +217,13 @@ class AgentCommandHandler {
                     throw new Error("Permission Denied: Remote control and monitoring are disabled in client configuration.");
                 }
                 return isSimulated ? this.simulateAction("REMOTE_CONTROL") : this.remoteControl(cmd);
+
+            case "SYSTEM_SLEEP":
+                if (permissions.allowRemoteSleep === false) throw new Error("Permission Denied: Remote sleep is disabled in client configuration.");
+                return isSimulated ? this.simulateAction("SYSTEM_SLEEP") : this.scheduleSleep(cmd.payload?.parameters || cmd.payload || {}, cmd.commandId);
+
+            case "SYSTEM_SLEEP_CANCEL":
+                return this.cancelSleep(cmd.payload?.parameters || cmd.payload || {});
 
             default:
                 throw new Error(`Unsupported command: ${commandType}`);
@@ -342,6 +356,65 @@ class AgentCommandHandler {
             platform: `${os.type()} ${os.release()}`,
             message: `Remote control session channel active on port ${remotePort} for ${this.config.deviceId}`
         };
+    }
+
+    async scheduleSleep(options, commandId) {
+        const graceSeconds = Number.isInteger(options.graceSeconds) ? Math.max(0, Math.min(600, options.graceSeconds)) : 30;
+        const scheduleId = options.scheduleId || commandId;
+        if (options.skipIfActiveSession && process.platform === "win32") {
+            try {
+                const { stdout } = await execFileAsync("query.exe", ["user"], { timeout: 5000, windowsHide: true });
+                if (/\bActive\b/i.test(stdout.split(/\r?\n/).slice(1).join("\n"))) {
+                    return { success: true, skipped: true, reason: "An active user session is present." };
+                }
+            } catch (error) {
+                const output = `${error?.stdout || ""} ${error?.message || ""}`;
+                if (!/no user exists|no entries in the list|no users/i.test(output)) {
+                    return { success: true, skipped: true, reason: "Could not verify active sessions; skipped for safety." };
+                }
+            }
+        }
+        if (graceSeconds > 0 && process.platform === "win32") {
+            try { await execFileAsync("msg.exe", ["*", `/time:${graceSeconds}`, String(options.warning || "This computer will sleep soon. Save your work.")], { timeout: 5000, windowsHide: true }); } catch {}
+        }
+        if (graceSeconds === 0) {
+            this.socket.emit("command:complete", { commandId, deviceId: this.config.deviceId, success: true, stdout: "Sleep starting", result: { success: true, scheduled: false } });
+            await this.sleepNow();
+            return { success: true, completionSent: true };
+        }
+        return new Promise((resolve, reject) => {
+            const timer = setTimeout(async () => {
+                this.sleepTimers.delete(scheduleId);
+                this.socket.emit("command:complete", { commandId, deviceId: this.config.deviceId, success: true, stdout: "Sleep starting", result: { success: true, scheduled: false } });
+                try { await this.sleepNow(); resolve({ success: true, completionSent: true }); }
+                catch (error) { this.socket.emit("command:failed", { commandId, deviceId: this.config.deviceId, error: error.message }); reject(error); }
+            }, graceSeconds * 1000);
+            this.sleepTimers.set(scheduleId, { timer, commandId, allowCancellation: options.allowCancellation !== false, resolve });
+        });
+    }
+
+    async cancelSleep(options) {
+        const scheduleId = options.scheduleId;
+        const pending = this.sleepTimers.get(scheduleId);
+        if (!pending) return { success: true, cancelled: false, reason: "No pending sleep." };
+        if (!pending.allowCancellation) throw new Error("Sleep cancellation is disabled by the schedule.");
+        clearTimeout(pending.timer);
+        this.sleepTimers.delete(scheduleId);
+        this.socket.emit("command:complete", { commandId: pending.commandId, deviceId: this.config.deviceId, success: true, stdout: "Pending sleep cancelled", result: { success: true, cancelled: true, scheduleId } });
+        pending.resolve({ success: true, cancelled: true, completionSent: true });
+        return { success: true, cancelled: true, scheduleId };
+    }
+
+    async sleepNow() {
+        if (process.platform === "win32") {
+            const source = "Add-Type -TypeDefinition 'using System; using System.Runtime.InteropServices; public static class PowerSleep { [DllImport(\"powrprof.dll\", SetLastError=true)] public static extern bool SetSuspendState(bool hibernate, bool forceCritical, bool disableWakeEvent); }'; if (-not [PowerSleep]::SetSuspendState($false, $false, $false)) { throw 'Windows refused the sleep request.' }";
+            await execFileAsync("powershell.exe", ["-NoLogo", "-NoProfile", "-NonInteractive", "-WindowStyle", "Hidden", "-Command", source], { timeout: 15000, windowsHide: true });
+        } else if (process.platform === "linux") {
+            await execFileAsync("systemctl", ["suspend"], { timeout: 15000, windowsHide: true });
+        } else if (process.platform === "darwin") {
+            await execFileAsync("pmset", ["sleepnow"], { timeout: 15000, windowsHide: true });
+        } else throw new Error(`Sleep is not supported on ${process.platform}.`);
+        return { success: true, message: "Sleep request accepted." };
     }
 
     /**

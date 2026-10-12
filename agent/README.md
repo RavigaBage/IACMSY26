@@ -16,6 +16,8 @@ This lightweight agent runs on target laboratory PCs to enable secure remote man
 - **Strict Security & Allowlisting**: Arbitrary remote shell execution is prohibited. Only supported, allowlisted operations are permitted:
   - `SYSTEM_RESTART` / `RESTART`
   - `SYSTEM_SHUTDOWN` / `SHUTDOWN`
+  - `SYSTEM_SLEEP` / `SLEEP` (with a warning/grace period and active-session check)
+  - `SYSTEM_SLEEP_CANCEL` / `CANCEL_SLEEP`
   - `SYSTEM_LOGOFF` / `LOGOFF`
   - `LOCK_WORKSTATION` / `LOCK`
   - `SYSTEM_UPDATE` / `UPDATE`
@@ -42,6 +44,8 @@ cd agent
 npm install
 ```
 
+For a repeatable install, `npm ci` is also supported when using the included `package-lock.json`.
+
 ### 3. Configure the Agent
 
 Edit `config.json` or configure environment variables. Each installed PC must have a unique, stable `deviceId`, and its `serverUrl` must point to a backend address reachable from that PC:
@@ -57,6 +61,7 @@ Edit `config.json` or configure environment variables. Each installed PC must ha
     "allowRemoteShutdown": true,
     "allowRemoteRestart": true,
     "allowRemoteLock": true,
+    "allowRemoteSleep": true,
     "allowRemoteMonitoring": true,
     "allowRemoteUpdate": true
   }
@@ -77,11 +82,22 @@ Do not use `localhost` unless the backend runs on the same PC as the agent. Prod
 | `ASSIGNED_USER` | User responsible for this PC | Current OS user |
 | `SERIAL_NUMBER` | Device serial number | Hostname-based value |
 | `AGENT_TOKEN` | Shared token required by the production backend | None |
-| `SIMULATE_COMMANDS` | Set to `"true"` to simulate without actual reboot | `false` |
+| `SIMULATE_COMMANDS` | Set to `"true"` to simulate remote commands without changing PC power state | `false` |
 
 ---
 
 ## Running the Agent
+
+### Check the agent and server connection
+
+Run these from the agent folder after configuring `config.json`:
+
+```powershell
+npm test
+npm run test:connection
+```
+
+The self-test checks device identity, network details, the command allowlist, simulated sleep, and the local sleep permission. The connection check performs the Socket.IO handshake (including backend token authentication) but does not register a device or run a command.
 
 ### Start directly
 
@@ -89,14 +105,37 @@ Do not use `localhost` unless the backend runs on the same PC as the agent. Prod
 npm start
 ```
 
-### Run as a background service on Windows
+### Install in the background on Windows
 
-Use Windows Task Scheduler or NSSM (Non-Sucking Service Manager):
+1. Install Node.js 18 or later for all users on the laboratory PC.
+2. Copy/extract the `agent` folder to the PC. Do not copy a `node_modules` folder or `.device_id`; the installer creates a unique identity for each PC.
+3. Open PowerShell as Administrator, change to the extracted agent folder, then run:
 
-```cmd
-nssm.exe install "IACMSY26-Agent" "node.exe" "C:\path\to\agent\index.js"
-nssm.exe start "IACMSY26-Agent"
+```powershell
+Set-ExecutionPolicy -Scope Process Bypass
+.\Install-Agent.ps1 -ServerUrl "https://rdm.example.edu" -Location "Training Lab"
 ```
+
+Use the backend URL that is reachable from the lab PC. The installer securely prompts for the backend `AGENT_TOKEN`, stores the agent under `C:\ProgramData\IACMSY26\Agent`, installs its Node dependency, and creates/starts a hidden-at-startup Scheduled Task running as `SYSTEM`. The task runs without an administrator logged in and writes output to `C:\ProgramData\IACMSY26\Agent\logs\agent.log`.
+
+For a safe first connection test, add `-SimulationMode` to the install command. This connects and registers the PC but simulates remote commands. After confirming the device appears online, rerun the installer without `-SimulationMode` to enable actual commands. Sleep may be skipped if an active session is present, according to the dashboard safety setting.
+
+To test the installation, run from the extracted agent folder in PowerShell:
+
+```powershell
+.\Test-Agent.ps1
+```
+
+The test runs the local self-check and verifies that the backend accepts the configured Socket.IO connection and token. It does not issue shutdown, restart, or sleep commands. Review the log at `C:\ProgramData\IACMSY26\Agent\logs\agent.log` if the task does not stay running.
+
+To stop and remove the task, run these commands in PowerShell as Administrator:
+
+```powershell
+Stop-ScheduledTask -TaskName "IACMSY26-Agent" -ErrorAction SilentlyContinue
+Unregister-ScheduledTask -TaskName "IACMSY26-Agent" -Confirm:$false
+```
+
+The agent files, local token, and logs remain under ProgramData so they can be reviewed or removed separately by an administrator.
 
 ### Run as a systemd service on Linux
 
