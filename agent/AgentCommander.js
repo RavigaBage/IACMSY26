@@ -14,7 +14,9 @@ const ALLOWED_COMMAND_TYPES = new Set([
     "SYSTEM_UPDATE",
     "REMOTE_CONTROL",
     "SYSTEM_SLEEP",
-    "SYSTEM_SLEEP_CANCEL"
+    "SYSTEM_SLEEP_CANCEL",
+    "SYSTEM_WAKE",
+    "WAKE_ON_LAN"
 ]);
 
 // Normalization mapping for standard alias names
@@ -36,6 +38,10 @@ const COMMAND_TYPE_ALIASES = {
     "SYSTEM_SLEEP": "SYSTEM_SLEEP",
     "CANCEL_SLEEP": "SYSTEM_SLEEP_CANCEL",
     "SYSTEM_SLEEP_CANCEL": "SYSTEM_SLEEP_CANCEL",
+    "WAKE": "SYSTEM_WAKE",
+    "SYSTEM_WAKE": "SYSTEM_WAKE",
+    "WAKE_ON_LAN": "WAKE_ON_LAN",
+    "WOL": "WAKE_ON_LAN",
 };
 
 class AgentCommandHandler {
@@ -225,6 +231,11 @@ class AgentCommandHandler {
             case "SYSTEM_SLEEP_CANCEL":
                 return this.cancelSleep(cmd.payload?.parameters || cmd.payload || {});
 
+            case "SYSTEM_WAKE":
+            case "WAKE_ON_LAN":
+                if (permissions.allowRemoteWake === false) throw new Error("Permission Denied: Remote wake is disabled in client configuration.");
+                return isSimulated ? this.simulateAction("SYSTEM_WAKE") : this.wakeTarget(cmd.payload?.parameters || cmd.payload || {});
+
             default:
                 throw new Error(`Unsupported command: ${commandType}`);
         }
@@ -408,13 +419,83 @@ class AgentCommandHandler {
     async sleepNow() {
         if (process.platform === "win32") {
             const source = "Add-Type -TypeDefinition 'using System; using System.Runtime.InteropServices; public static class PowerSleep { [DllImport(\"powrprof.dll\", SetLastError=true)] public static extern bool SetSuspendState(bool hibernate, bool forceCritical, bool disableWakeEvent); }'; if (-not [PowerSleep]::SetSuspendState($false, $false, $false)) { throw 'Windows refused the sleep request.' }";
-            await execFileAsync("powershell.exe", ["-NoLogo", "-NoProfile", "-NonInteractive", "-WindowStyle", "Hidden", "-Command", source], { timeout: 15000, windowsHide: true });
+            try {
+                await execFileAsync("powershell.exe", ["-NoLogo", "-NoProfile", "-NonInteractive", "-WindowStyle", "Hidden", "-Command", source], { timeout: 15000, windowsHide: true });
+            } catch (err) {
+                // Secondary fallback for Windows
+                await execFileAsync("rundll32.exe", ["powrprof.dll,SetSuspendState", "0,1,0"], { timeout: 10000, windowsHide: true });
+            }
         } else if (process.platform === "linux") {
-            await execFileAsync("systemctl", ["suspend"], { timeout: 15000, windowsHide: true });
+            try {
+                await execFileAsync("systemctl", ["suspend"], { timeout: 15000, windowsHide: true });
+            } catch (err) {
+                // Fallback for non-systemd Linux
+                try {
+                    await execFileAsync("pm-suspend", [], { timeout: 15000 });
+                } catch {
+                    throw new Error(`Linux suspend failed: ${err.message}`);
+                }
+            }
         } else if (process.platform === "darwin") {
             await execFileAsync("pmset", ["sleepnow"], { timeout: 15000, windowsHide: true });
         } else throw new Error(`Sleep is not supported on ${process.platform}.`);
         return { success: true, message: "Sleep request accepted." };
+    }
+
+    /**
+     * Broadcast Wake-on-LAN magic packet to target MAC address
+     */
+    async wakeTarget(options = {}) {
+        const mac = options.macAddress || this.config.macAddress;
+        if (!mac) {
+            throw new Error("Missing target MAC address for Wake-on-LAN.");
+        }
+        const macClean = mac.replace(/[:-]/g, "");
+        if (macClean.length !== 12) {
+            throw new Error(`Invalid MAC address format for Wake-on-LAN: ${mac}`);
+        }
+        const bytes = macClean.match(/.{2}/g).map(p => parseInt(p, 16));
+        const packet = Buffer.alloc(6 + 16 * 6, 0xff);
+        for (let i = 6; i < packet.length; i += 6) packet.set(bytes, i);
+
+        const targetBroadcast = options.broadcastAddress || "255.255.255.255";
+        const dgram = require("dgram");
+
+        await new Promise((resolve, reject) => {
+            const s = dgram.createSocket("udp4");
+            s.once("error", (err) => {
+                try { s.close(); } catch {}
+                reject(err);
+            });
+            s.bind(() => {
+                s.setBroadcast(true);
+                s.send(packet, 9, targetBroadcast, () => {
+                    s.send(packet, 7, targetBroadcast, () => {
+                        if (targetBroadcast !== "255.255.255.255") {
+                            try {
+                                s.send(packet, 9, "255.255.255.255", () => {
+                                    try { s.close(); } catch {}
+                                    resolve();
+                                });
+                            } catch {
+                                try { s.close(); } catch {}
+                                resolve();
+                            }
+                        } else {
+                            try { s.close(); } catch {}
+                            resolve();
+                        }
+                    });
+                });
+            });
+        });
+
+        return {
+            success: true,
+            message: `Wake-on-LAN magic packet broadcasted for MAC ${mac} to ${targetBroadcast}`,
+            macAddress: mac,
+            broadcastAddress: targetBroadcast
+        };
     }
 
     /**

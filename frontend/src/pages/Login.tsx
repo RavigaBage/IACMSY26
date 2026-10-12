@@ -170,7 +170,15 @@ export default function LoginPage() {
               </p>
             )}
 
-            <div className="flex justify-end">
+            <div className="flex items-center justify-between">
+              <button
+                type="button"
+                onClick={fillDemoAdmin}
+                className="inline-flex items-center gap-1.5 text-xs text-emerald-700 hover:text-emerald-800 font-medium bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded px-2 py-1 transition-colors cursor-pointer"
+              >
+                <ShieldCheck className="h-3.5 w-3.5" />
+                Demo Admin
+              </button>
               <a href="/forgot-password" className="text-sm font-medium text-emerald-700 hover:text-emerald-800">
                 Forgot Password?
               </a>

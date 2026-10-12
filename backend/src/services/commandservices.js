@@ -18,6 +18,10 @@ class CommandService {
         return this.createCommand("SYSTEM_SLEEP", deviceIds, options);
     }
 
+    async wake(deviceIds, options = {}) {
+        return this.createCommand("SYSTEM_WAKE", deviceIds, options);
+    }
+
     async cancelSleep(deviceIds, scheduleId) {
         return this.createCommand("SYSTEM_SLEEP_CANCEL", deviceIds, { scheduleId });
     }

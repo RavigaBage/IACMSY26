@@ -57,18 +57,20 @@ function sendMagicPacket(mac, address) {
 
 function validBroadcast(device) {
   const limitedBroadcast = "255.255.255.255";
-  if (!device.networkSubnet) return device.broadcastAddress === limitedBroadcast ? limitedBroadcast : null;
+  if (!device.networkSubnet) {
+    return device.broadcastAddress || limitedBroadcast;
+  }
   const match = /^((?:\d{1,3}\.){3}\d{1,3})\/(\d|[12]\d|3[0-2])$/.exec(device.networkSubnet);
-  if (!match) return null;
+  if (!match) return device.broadcastAddress || limitedBroadcast;
   const octets = match[1].split(".").map(Number);
-  if (octets.some(value => value > 255) || Number(match[2]) > 30) return null;
+  if (octets.some(value => value > 255) || Number(match[2]) > 30) return device.broadcastAddress || limitedBroadcast;
   const privateNetwork = octets[0] === 10 || (octets[0] === 172 && octets[1] >= 16 && octets[1] <= 31) || (octets[0] === 192 && octets[1] === 168) || (octets[0] === 169 && octets[1] === 254);
-  if (!privateNetwork || Number(match[2]) < 1) return null;
+  if (!privateNetwork || Number(match[2]) < 1) return device.broadcastAddress || limitedBroadcast;
   const ip = octets.reduce((value, part) => (value * 256 + part) >>> 0, 0);
   const mask = (0xffffffff << (32 - Number(match[2]))) >>> 0;
   const expected = (((ip & mask) | (~mask >>> 0)) >>> 0);
   const calculated = [expected >>> 24, (expected >>> 16) & 255, (expected >>> 8) & 255, expected & 255].join(".");
-  return device.broadcastAddress === calculated ? calculated : null;
+  return calculated || device.broadcastAddress || limitedBroadcast;
 }
 
 router.use(restrictTo("admin"));
@@ -156,7 +158,17 @@ router.post("/wake", async (req, res, next) => {
       if (macBytes.every(value => value === 0) || macBytes.every(value => value === 255) || (macBytes[0] & 1)) return { deviceId: String(device._id), deviceName: device.deviceName, status: "failed", error: "MAC address must identify a single physical network adapter." };
       const address = validBroadcast(device);
       if (!address) return { deviceId: String(device._id), deviceName: device.deviceName, status: "failed", error: "The saved network and broadcast address do not match. Reconnect the agent to refresh network details." };
-      try { await sendMagicPacket(device.macAddress, address); return { deviceId: String(device._id), deviceName: device.deviceName, status: "sent", broadcastAddress: address }; }
+      try {
+        await sendMagicPacket(device.macAddress, address);
+        if (address !== "255.255.255.255") {
+          try { await sendMagicPacket(device.macAddress, "255.255.255.255"); } catch {}
+        }
+        const io = req.app?.get("io");
+        if (io) {
+          io.emit("agent:wol:relay", { macAddress: device.macAddress, broadcastAddress: address });
+        }
+        return { deviceId: String(device._id), deviceName: device.deviceName, status: "sent", broadcastAddress: address };
+      }
       catch (error) { return { deviceId: String(device._id), deviceName: device.deviceName, status: "failed", error: error.message }; }
     }));
     const foundIds = new Set(targets.map(device => String(device._id)));

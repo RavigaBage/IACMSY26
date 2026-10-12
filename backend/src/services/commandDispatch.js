@@ -109,6 +109,11 @@ class CommandDispatcher {
                                          this.socketService.isDeviceOnline(Room_ID._id?.toString()) ||
                                          this.socketService.isDeviceOnline(target.deviceId);
 
+                        if (command.commandType === "SYSTEM_WAKE" || command.commandType === "WAKE_ON_LAN") {
+                            await this.dispatchWakeOnLan(Room_ID, target, command);
+                            continue;
+                        }
+
                         if (!isOnline) {
                             console.warn(`⚠️  [SKIP] device=${target.deviceId} (${devKey}) is offline`);
                             await this.repo.markOffline(target._id, "Device is offline");
@@ -209,6 +214,80 @@ class CommandDispatcher {
 
         for (const target of stalled) {
             await this.repo.markTargetStatus(target.id, "TIMED_OUT");
+        }
+    }
+
+    async dispatchWakeOnLan(deviceRecord, target, command) {
+        try {
+            const mac = deviceRecord?.macAddress;
+            if (!mac) {
+                console.warn(`⚠️ Cannot wake ${deviceRecord?.deviceName || target.deviceId}: missing MAC address`);
+                await this.repo.markTargetStatusByCommand(command._id, target.deviceId, "FAILED", {
+                    error: "Target PC has no registered MAC address for Wake-on-LAN"
+                });
+                return;
+            }
+
+            const macClean = mac.replace(/[:-]/g, "");
+            if (macClean.length !== 12) {
+                await this.repo.markTargetStatusByCommand(command._id, target.deviceId, "FAILED", {
+                    error: `Invalid MAC address format: ${mac}`
+                });
+                return;
+            }
+
+            const bytes = macClean.match(/.{2}/g).map(p => parseInt(p, 16));
+            const packet = Buffer.alloc(6 + 16 * 6, 0xff);
+            for (let i = 6; i < packet.length; i += 6) packet.set(bytes, i);
+
+            const address = deviceRecord.broadcastAddress || "255.255.255.255";
+            const dgram = require("dgram");
+
+            // 1. Broadcast UDP Wake-on-LAN Magic Packet from server (ports 9 and 7)
+            await new Promise((resolve) => {
+                const s = dgram.createSocket("udp4");
+                s.bind(() => {
+                    s.setBroadcast(true);
+                    s.send(packet, 9, address, () => {
+                        s.send(packet, 7, address, () => {
+                            if (address !== "255.255.255.255") {
+                                try {
+                                    s.send(packet, 9, "255.255.255.255", () => {
+                                        try { s.close(); } catch {}
+                                        resolve();
+                                    });
+                                } catch {
+                                    try { s.close(); } catch {}
+                                    resolve();
+                                }
+                            } else {
+                                try { s.close(); } catch {}
+                                resolve();
+                            }
+                        });
+                    });
+                });
+            });
+
+            // 2. Broadcast to all active connected agents in local network mesh
+            if (this.socketService && typeof this.socketService.broadcast === "function") {
+                this.socketService.broadcast("agent:wol:relay", {
+                    macAddress: mac,
+                    broadcastAddress: address
+                });
+            }
+
+            // 3. Mark target command status COMPLETED
+            await this.repo.markTargetStatusByCommand(command._id, target.deviceId, "COMPLETED", {
+                stdout: `Wake-on-LAN magic packet broadcasted for MAC ${mac} via ${address}`,
+                result: { success: true, macAddress: mac, broadcastAddress: address }
+            });
+            console.log(`✅ [WoL Dispatched] Wake-on-LAN sent for ${deviceRecord.deviceName || target.deviceId} (${mac})`);
+        } catch (err) {
+            console.error(`❌ [WoL Failed] Error waking ${target.deviceId}:`, err.message);
+            await this.repo.markTargetStatusByCommand(command._id, target.deviceId, "FAILED", {
+                error: err.message
+            });
         }
     }
 }

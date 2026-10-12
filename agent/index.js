@@ -79,6 +79,7 @@ const config = {
         allowRemoteRestart: baseConfig.permissions?.allowRemoteRestart ?? true,
         allowRemoteLock: baseConfig.permissions?.allowRemoteLock ?? true,
         allowRemoteSleep: baseConfig.permissions?.allowRemoteSleep ?? true,
+        allowRemoteWake: baseConfig.permissions?.allowRemoteWake ?? true,
         allowRemoteMonitoring: baseConfig.permissions?.allowRemoteMonitoring ?? true,
         allowRemoteUpdate: baseConfig.permissions?.allowRemoteUpdate ?? true,
         allowFileTransfer: baseConfig.permissions?.allowFileTransfer ?? false,
@@ -145,6 +146,10 @@ if (process.argv.includes("--test") || process.argv.includes("--dry-run")) {
     mockHandler.execute({ type: "SYSTEM_SLEEP", commandId: "self-test", payload: { parameters: { graceSeconds: 0 } } })
         .then(result => {
             if (!result.simulated) throw new Error("Sleep command did not stay in simulation mode.");
+            return mockHandler.execute({ type: "SYSTEM_WAKE", commandId: "self-test-wake", payload: { parameters: { macAddress: "00:11:22:33:44:55" } } });
+        })
+        .then(wakeResult => {
+            if (!wakeResult.simulated) throw new Error("Wake command did not stay in simulation mode.");
             const deniedHandler = new AgentCommandHandler(mockSocket, { ...config, simulateExecution: true, permissions: { ...config.permissions, allowRemoteSleep: false } });
             return deniedHandler.execute({ type: "SYSTEM_SLEEP", commandId: "self-test-denied" });
         })
@@ -317,6 +322,26 @@ socket.on("disconnect", (reason) => {
 
 socket.on("connect_error", (err) => {
     console.warn(`⚠️  [Connection Error] Cannot reach server at ${config.serverUrl}: ${err.message}`);
+});
+
+socket.on("agent:wol:relay", (payload) => {
+    if (!payload?.macAddress) return;
+    try {
+        const dgram = require("dgram");
+        const bytes = payload.macAddress.replace(/[:-]/g, "").match(/.{2}/g).map(p => parseInt(p, 16));
+        const packet = Buffer.alloc(6 + 16 * 6, 0xff);
+        for (let i = 6; i < packet.length; i += 6) packet.set(bytes, i);
+        const s = dgram.createSocket("udp4");
+        s.bind(() => {
+            s.setBroadcast(true);
+            s.send(packet, 9, payload.broadcastAddress || "255.255.255.255", () => {
+                try { s.close(); } catch {}
+            });
+        });
+        console.log(`📡 [WoL Relay] Broadcasted Wake-on-LAN magic packet for target MAC ${payload.macAddress}`);
+    } catch (err) {
+        console.warn(`⚠️  [WoL Relay Error] ${err.message}`);
+    }
 });
 
 console.log("🎯 [Ready] Agent boot sequence complete. Listening for authorized remote management operations.");

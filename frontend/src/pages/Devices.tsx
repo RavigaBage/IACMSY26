@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { ServerCrash, Loader2, Plus, X, MonitorPlay, AlertCircle, Edit2, Trash2, ChevronDown, Command, Moon, Sun, Zap } from 'lucide-react';
+import { ServerCrash, Loader2, Plus, X, MonitorPlay, AlertCircle, Edit2, Trash2, ChevronDown, Command, Moon, Sun, Zap, HelpCircle } from 'lucide-react';
 import { api } from '../lib/api';
 import { useToast } from '../contexts/ToastContext';
 import { ConfirmModal } from '../components/ui/ConfirmModal';
@@ -99,6 +99,7 @@ export default function Devices() {
   const { success, error, toast } = useToast();
   const { user } = useAuth();
   const [selectedCommand, setSelectedCommand] = useState('');
+  const [showTargetPcGuide, setShowTargetPcGuide] = useState(false);
 
   useEffect(() => {
     fetchDevices();
@@ -223,12 +224,21 @@ export default function Devices() {
       setActionLoading(type);
       toast(`Sending ${type} command...`, 'info');
       if (type === 'sleep') {
-        await api.post('/api/iac/power/sleep', { deviceIds: ids, graceSeconds: 30, skipIfActiveSession: true });
-        success('Sleep warning sent to selected computers.');
+        try {
+          await api.post('/api/iac/power/sleep', { deviceIds: ids, graceSeconds: 30, skipIfActiveSession: false });
+        } catch {
+          await api.post('/api/iac/devices/sleep', { deviceIds: ids, graceSeconds: 30, skipIfActiveSession: false });
+        }
+        success('Sleep command sent to selected computer(s).');
       } else if (type === 'wake') {
-        const result = await api.post('/api/iac/power/wake', { deviceIds: ids });
-        const sent = result?.results?.filter((item: any) => item.status === 'sent').length || 0;
-        success(`Wake packet sent to ${sent} of ${ids.length} selected computers.`);
+        let result: any;
+        try {
+          result = await api.post('/api/iac/power/wake', { deviceIds: ids });
+        } catch {
+          result = await api.post('/api/iac/devices/wake', { deviceIds: ids });
+        }
+        const sent = result?.results?.filter((item: any) => item.status === 'sent').length ?? ids.length;
+        success(`Wake-on-LAN packet sent to ${sent} of ${ids.length} selected computer(s).`);
         const failed = result?.results?.filter((item: any) => item.status === 'failed') || [];
         if (failed.length) error(failed.map((item: any) => `${item.deviceName}: ${item.error}`).join(' '));
       } else {
@@ -285,6 +295,14 @@ export default function Devices() {
         </div>
         
         <div className="flex items-center gap-2 flex-wrap">
+          <button
+            type="button"
+            onClick={() => setShowTargetPcGuide(true)}
+            className="px-3.5 py-2 bg-white text-zinc-700 border border-zinc-200 rounded-lg hover:bg-zinc-50 hover:text-zinc-900 transition-colors text-sm font-medium flex items-center gap-2 cursor-pointer shadow-sm"
+          >
+            <HelpCircle className="w-4 h-4 text-emerald-600" />
+            Target PC Setup Guide
+          </button>
           <button 
             onClick={() => {
               if (isFormOpen) handleCancelForm();
@@ -533,9 +551,47 @@ export default function Devices() {
                       </td>
                       <td className="py-3 px-4 text-right">
                         <div className="flex items-center justify-end gap-1">
+                          {user?.role === 'admin' && (
+                            <>
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setModalAction({
+                                    type: 'sleep',
+                                    title: `Put ${device.deviceName} to sleep`,
+                                    message: `Send a sleep warning to "${device.deviceName}". The computer will enter sleep mode after 30 seconds.`,
+                                    ids: [device._id]
+                                  });
+                                }}
+                                className="min-w-[36px] min-h-[36px] flex items-center justify-center rounded-lg text-amber-600 hover:text-amber-700 hover:bg-amber-50 transition-colors cursor-pointer"
+                                title="Put to sleep"
+                                aria-label={`Put ${device.deviceName} to sleep`}
+                              >
+                                <Moon className="w-4 h-4" />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setModalAction({
+                                    type: 'wake',
+                                    title: `Wake ${device.deviceName} (Wake-on-LAN)`,
+                                    message: `Send Wake-on-LAN magic packet to wake up "${device.deviceName}"?`,
+                                    ids: [device._id]
+                                  });
+                                }}
+                                className="min-w-[36px] min-h-[36px] flex items-center justify-center rounded-lg text-sky-600 hover:text-sky-700 hover:bg-sky-50 transition-colors cursor-pointer"
+                                title="Wake on LAN"
+                                aria-label={`Wake ${device.deviceName}`}
+                              >
+                                <Sun className="w-4 h-4" />
+                              </button>
+                            </>
+                          )}
                           <button
                             onClick={(e) => handleEdit(device, e)}
-                            className="min-w-[40px] min-h-[40px] flex items-center justify-center rounded-lg text-zinc-500 hover:text-zinc-900 hover:bg-zinc-100 transition-colors cursor-pointer"
+                            className="min-w-[36px] min-h-[36px] flex items-center justify-center rounded-lg text-zinc-500 hover:text-zinc-900 hover:bg-zinc-100 transition-colors cursor-pointer"
                             title="Edit"
                             aria-label="Edit device"
                           >
@@ -543,7 +599,7 @@ export default function Devices() {
                           </button>
                           <button
                             onClick={(e) => requestDelete(device, e)}
-                            className="min-w-[40px] min-h-[40px] flex items-center justify-center rounded-lg text-zinc-500 hover:text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer"
+                            className="min-w-[36px] min-h-[36px] flex items-center justify-center rounded-lg text-zinc-500 hover:text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer"
                             title="Delete"
                             aria-label="Delete device"
                           >
@@ -563,6 +619,93 @@ export default function Devices() {
               totalPages={totalPages}
               onPageChange={setCurrentPage}
             />
+          </div>
+        </div>
+      )}
+
+      {showTargetPcGuide && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-zinc-900/60 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-white rounded-2xl max-w-2xl w-full p-6 shadow-xl border border-zinc-200 max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between pb-4 border-b border-zinc-100 mb-5">
+              <div className="flex items-center gap-3">
+                <div className="p-2.5 rounded-xl bg-emerald-50 text-emerald-700">
+                  <HelpCircle className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-bold text-zinc-900">Target PC Setup Guide (Sleep & Wake-on-LAN)</h3>
+                  <p className="text-xs text-zinc-500">Settings required on endpoint computers to enable remote sleep and wake</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowTargetPcGuide(false)}
+                className="p-1.5 rounded-lg text-zinc-400 hover:text-zinc-600 hover:bg-zinc-100 transition-colors"
+                aria-label="Close guide"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="space-y-5 text-sm text-zinc-700">
+              <div className="rounded-xl bg-zinc-50 p-4 border border-zinc-200/80">
+                <h4 className="font-semibold text-zinc-900 flex items-center gap-2 mb-2">
+                  <span className="w-5 h-5 rounded-full bg-zinc-900 text-white text-xs flex items-center justify-center font-bold">1</span>
+                  BIOS / UEFI Motherboard Settings (Hardware)
+                </h4>
+                <ul className="list-disc list-inside space-y-1.5 text-xs text-zinc-600 ml-1">
+                  <li>Enter BIOS setup on boot (<kbd className="px-1.5 py-0.5 bg-white border rounded">Del</kbd>, <kbd className="px-1.5 py-0.5 bg-white border rounded">F2</kbd>, or <kbd className="px-1.5 py-0.5 bg-white border rounded">F12</kbd>).</li>
+                  <li>In <strong>Power Management / ACPI</strong>, enable <strong>Wake-on-LAN (WoL)</strong> or <strong>Power On By PCI-E/PME</strong>.</li>
+                  <li><strong>Disable ErP / EuP Ready</strong>: If ErP is enabled, motherboard power to the network card is cut off during sleep or shutdown.</li>
+                  <li>Set ACPI Sleep state to <strong>S3 (Suspend to RAM)</strong>.</li>
+                </ul>
+              </div>
+
+              <div className="rounded-xl bg-zinc-50 p-4 border border-zinc-200/80">
+                <h4 className="font-semibold text-zinc-900 flex items-center gap-2 mb-2">
+                  <span className="w-5 h-5 rounded-full bg-zinc-900 text-white text-xs flex items-center justify-center font-bold">2</span>
+                  Windows Settings (Network Adapter & Fast Startup)
+                </h4>
+                <ul className="list-disc list-inside space-y-1.5 text-xs text-zinc-600 ml-1">
+                  <li>Open <strong>Device Manager</strong> &rarr; <strong>Network Adapters</strong> &rarr; Right-click physical Ethernet &rarr; <strong>Properties</strong>.</li>
+                  <li>In <strong>Advanced</strong> tab: Set <strong>Wake on Magic Packet</strong> to <em>Enabled</em>, and set <strong>Shutdown Wake-On-Lan</strong> to <em>Enabled</em>.</li>
+                  <li>In <strong>Power Management</strong> tab: Check <em>Allow this device to wake the computer</em> and <em>Only allow a magic packet to wake the computer</em>.</li>
+                  <li><strong>Disable Fast Startup</strong>: Control Panel &rarr; Power Options &rarr; &ldquo;Choose what the power buttons do&rdquo; &rarr; Uncheck <em>Turn on fast startup</em>. (Fast Startup puts Windows into S4 hybrid sleep where standard Ethernet listening is disabled).</li>
+                  <li>Verify in admin PowerShell: <code className="bg-zinc-200 px-1 py-0.5 rounded text-[11px]">powercfg /devicequery wake_armed</code></li>
+                </ul>
+              </div>
+
+              <div className="rounded-xl bg-zinc-50 p-4 border border-zinc-200/80">
+                <h4 className="font-semibold text-zinc-900 flex items-center gap-2 mb-2">
+                  <span className="w-5 h-5 rounded-full bg-zinc-900 text-white text-xs flex items-center justify-center font-bold">3</span>
+                  Linux Settings (ethtool)
+                </h4>
+                <ul className="list-disc list-inside space-y-1.5 text-xs text-zinc-600 ml-1">
+                  <li>Check status: <code className="bg-zinc-200 px-1 py-0.5 rounded text-[11px]">sudo ethtool eth0 | grep Wake-on</code></li>
+                  <li>Enable Magic Packet wake: <code className="bg-zinc-200 px-1 py-0.5 rounded text-[11px]">sudo ethtool -s eth0 wol g</code></li>
+                  <li>Persist in NetworkManager: <code className="bg-zinc-200 px-1 py-0.5 rounded text-[11px]">nmcli connection modify &quot;Wired connection 1&quot; 802-3-ethernet.wake-on-lan magic</code></li>
+                </ul>
+              </div>
+
+              <div className="rounded-xl bg-sky-50 p-4 border border-sky-200/80 text-sky-900">
+                <h4 className="font-semibold flex items-center gap-2 mb-1">
+                  <Sun className="w-4 h-4 text-sky-600" />
+                  Local Subnet & WoL Relay
+                </h4>
+                <p className="text-xs text-sky-800 leading-relaxed">
+                  Target computers must be connected via Ethernet cable. When the server is hosted in the cloud, any online agent in the same laboratory automatically relays the Wake-on-LAN Magic Packet directly onto the local LAN broadcast (<code className="bg-sky-100 px-1 py-0.5 rounded">255.255.255.255:9</code>).
+                </p>
+              </div>
+            </div>
+
+            <div className="mt-6 flex justify-end">
+              <button
+                type="button"
+                onClick={() => setShowTargetPcGuide(false)}
+                className="px-4 py-2 bg-zinc-900 text-white rounded-lg text-sm font-semibold hover:bg-zinc-800 transition-colors"
+              >
+                Close Guide
+              </button>
+            </div>
           </div>
         </div>
       )}

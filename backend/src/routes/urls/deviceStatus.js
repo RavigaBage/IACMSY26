@@ -163,6 +163,56 @@ function InitiateService_route(commandService){
       res.status(500).json({ message: "Error system_updateing devices" });
     }
   });
+  router.post("/sleep", restrictTo("user", "admin"), async (req, res) => {
+    try {
+      const { deviceIds, graceSeconds = 30, skipIfActiveSession = false } = req.body;
+      if (!deviceIds?.length) return res.status(400).json({ message: "No device IDs provided" });
+      const result = await commandService.sleep(deviceIds, { graceSeconds, skipIfActiveSession });
+      if (!result) return res.status(500).json({ message: "Error creating sleep command" });
+      res.json(result);
+    } catch (error) {
+      console.error("Sleep error:", error);
+      res.status(500).json({ message: "Error putting devices to sleep" });
+    }
+  });
+  router.post("/wake", restrictTo("user", "admin"), async (req, res) => {
+    try {
+      const { deviceIds } = req.body;
+      if (!deviceIds?.length) return res.status(400).json({ message: "No device IDs provided" });
+      const dgram = require("dgram");
+      const targets = await DevicesData.find({ _id: { $in: deviceIds }, isDeleted: { $ne: true } }).lean();
+      const results = await Promise.all(targets.map(async device => {
+        if (!device.macAddress) return { deviceId: String(device._id), deviceName: device.deviceName, status: "failed", error: "Missing MAC address" };
+        const macClean = device.macAddress.replace(/[:-]/g, "");
+        if (macClean.length !== 12) return { deviceId: String(device._id), deviceName: device.deviceName, status: "failed", error: "Invalid MAC address" };
+        const bytes = macClean.match(/.{2}/g).map(p => parseInt(p, 16));
+        const packet = Buffer.alloc(6 + 16 * 6, 0xff);
+        for (let i = 6; i < packet.length; i += 6) packet.set(bytes, i);
+        const address = device.broadcastAddress || "255.255.255.255";
+        await new Promise((resolve) => {
+          const s = dgram.createSocket("udp4");
+          s.bind(() => {
+            s.setBroadcast(true);
+            s.send(packet, 9, address, () => {
+              if (address !== "255.255.255.255") {
+                try { s.send(packet, 9, "255.255.255.255", () => s.close()); } catch { s.close(); }
+              } else {
+                s.close();
+              }
+              resolve();
+            });
+          });
+        });
+        const io = req.app?.get("io");
+        if (io) io.emit("agent:wol:relay", { macAddress: device.macAddress, broadcastAddress: address });
+        return { deviceId: String(device._id), deviceName: device.deviceName, status: "sent", broadcastAddress: address };
+      }));
+      res.json({ results });
+    } catch (error) {
+      console.error("Wake error:", error);
+      res.status(500).json({ message: "Error waking devices" });
+    }
+  });
   router.post("/device-Status", restrictTo('admin',"user"),async(req,res)=>{
     try {
       const { deviceIds } = req.body;

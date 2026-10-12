@@ -19,6 +19,11 @@ class SocketService {
         console.log(deviceId);
         return this.connectedDevices.has(deviceId);
     }
+    broadcast(event, payload) {
+        if (this.io) {
+            this.io.emit(event, payload);
+        }
+    }
     emitToDevice(deviceId, event, payload) {
         this.io.to(`device:${deviceId}`)
             .emit(event, payload);
