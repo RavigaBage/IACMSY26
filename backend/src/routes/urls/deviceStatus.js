@@ -175,6 +175,18 @@ function InitiateService_route(commandService){
       res.status(500).json({ message: "Error putting devices to sleep" });
     }
   });
+  router.post("/hibernate", restrictTo("user", "admin"), async (req, res) => {
+    try {
+      const { deviceIds } = req.body;
+      if (!deviceIds?.length) return res.status(400).json({ message: "No device IDs provided" });
+      const result = await commandService.hibernate(deviceIds);
+      if (!result) return res.status(500).json({ message: "Error creating hibernate command" });
+      res.json(result);
+    } catch (error) {
+      console.error("Hibernate error:", error);
+      res.status(500).json({ message: "Error hibernating devices" });
+    }
+  });
   router.post("/wake", restrictTo("user", "admin"), async (req, res) => {
     try {
       const { deviceIds } = req.body;

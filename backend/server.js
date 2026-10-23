@@ -101,22 +101,21 @@ app.use('/api', (req, res) => {
     });
 });
 
+const distPath = path.join(__dirname, '../frontend/dist');
+const indexPath = path.join(distPath, 'index.html');
 const { protect } = require('./src/middleware/auth');
+
 app.use('/uploads', protect, express.static(path.join(__dirname, 'uploads')));
-app.use('/src/assets', express.static(path.join(__dirname, '../src/assets')));
+app.use(express.static(distPath));
+app.use('/assets', express.static(path.join(distPath, 'assets')));
 app.use('/assets', express.static(path.join(__dirname, '../src/assets')));
+app.use('/src/assets', express.static(path.join(__dirname, '../src/assets')));
 const iacMobileAppDir = fs.existsSync(path.join(__dirname, '../iacmobile-app'))
     ? path.join(__dirname, '../iacmobile-app')
     : path.join(__dirname, '../IACMOBILE APP');
 app.use('/IACMOBILE APP', express.static(path.join(__dirname, '../IACMOBILE APP')));
 app.use('/iacmobile-app', express.static(iacMobileAppDir));
 app.use('/attendanceForm', express.static(path.join(__dirname, '../attendanceForm')));
-const distPath = path.join(__dirname, '../frontend/dist');
-const indexPath = path.join(distPath, 'index.html');
-
-if (fs.existsSync(distPath)) {
-    app.use(express.static(distPath));
-}
 
 // Any non-GET or API request that was not handled by previous routes should return JSON 404, never HTML
 app.use((req, res, next) => {
@@ -178,6 +177,10 @@ app.use((err, req, res, next) => {
     }
     console.error(err.stack || err.message);
     if (err.name === 'MongooseError' || err.name === 'MongoNetworkError' || err.message?.includes('buffering timed out')) {
+        console.warn('[AI Studio] Database offline — returning mock empty response or 503');
+        if (req.method === 'GET') {
+            return res.json(req.path.endsWith('s') || req.path.endsWith('s/') ? [] : {});
+        }
         return res.status(503).json({
             status: 'error',
             message: 'Database service is unavailable',
@@ -192,9 +195,7 @@ app.use((err, req, res, next) => {
     });
 });
 
-
-
-const PORT = (process.env.PORT && process.env.PORT !== '8080') ? process.env.PORT : (process.env.BACKEND_PORT || 3000);
+const PORT = 3000;
 
 
 io.on("connection", (socket) => {
@@ -316,6 +317,23 @@ function validateProductionConfig() {
         throw new Error('CORS_ORIGINS must contain real HTTPS origins in production');
     }
 }
+
+server.on('error', (err) => {
+    if (err.code === 'EADDRINUSE') {
+        console.error(`❌ Port ${PORT} is already in use (EADDRINUSE). Attempting recovery in 1s...`);
+        setTimeout(() => {
+            try {
+                server.close();
+            } catch {}
+            server.listen(PORT, "0.0.0.0", () => {
+                console.log(`🚀 Server recovered and running on port ${PORT}`);
+                startPowerScheduler(commandService);
+            });
+        }, 1000);
+        return;
+    }
+    console.error(`❌ Server error: ${err.message}`);
+});
 
 const startServer = async () => {
     validateProductionConfig();

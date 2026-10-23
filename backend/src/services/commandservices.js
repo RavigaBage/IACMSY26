@@ -18,6 +18,10 @@ class CommandService {
         return this.createCommand("SYSTEM_SLEEP", deviceIds, options);
     }
 
+    async hibernate(deviceIds) {
+        return this.createCommand("SYSTEM_HIBERNATE", deviceIds, {});
+    }
+
     async wake(deviceIds, options = {}) {
         return this.createCommand("SYSTEM_WAKE", deviceIds, options);
     }

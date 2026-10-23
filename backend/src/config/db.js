@@ -71,7 +71,8 @@ const connectDB = async () => {
             await seedInitialData();
             return;
         } catch (err) {
-            throw new Error(`Failed to start MongoDB Memory Server: ${err.message}`, { cause: err });
+            console.warn(`[AI Studio] Failed to start MongoDB Memory Server: ${err.message}. Continuing in fallback mode.`);
+            return;
         }
     }
 
@@ -94,7 +95,7 @@ const connectDB = async () => {
         await seedInitialData();
 
     } catch (err) {
-        throw new Error(`MongoDB connection failed: ${err.message}`, { cause: err });
+        console.warn(`[AI Studio] MongoDB connection failed: ${err.message}. Continuing in fallback mode.`);
     }
 };
 

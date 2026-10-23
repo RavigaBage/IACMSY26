@@ -6,9 +6,10 @@
     "frontend"
   ],
   "scripts": {
-    "dev": "node backend/server.js",
+    "build:frontend": "npm run build --workspace=frontend",
+    "dev": "npm run build:frontend && node backend/server.js",
     "start": "node backend/server.js",
-    "build": "npm run build --workspace=frontend",
+    "build": "npm run build:frontend",
     "lint": "npm run lint --workspace=frontend",
     "cap:sync": "npx cap sync android",
     "build:android": "bash scripts/build_android_apk.sh"

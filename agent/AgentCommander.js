@@ -15,6 +15,7 @@ const ALLOWED_COMMAND_TYPES = new Set([
     "REMOTE_CONTROL",
     "SYSTEM_SLEEP",
     "SYSTEM_SLEEP_CANCEL",
+    "SYSTEM_HIBERNATE",
     "SYSTEM_WAKE",
     "WAKE_ON_LAN"
 ]);
@@ -38,6 +39,8 @@ const COMMAND_TYPE_ALIASES = {
     "SYSTEM_SLEEP": "SYSTEM_SLEEP",
     "CANCEL_SLEEP": "SYSTEM_SLEEP_CANCEL",
     "SYSTEM_SLEEP_CANCEL": "SYSTEM_SLEEP_CANCEL",
+    "HIBERNATE": "SYSTEM_HIBERNATE",
+    "SYSTEM_HIBERNATE": "SYSTEM_HIBERNATE",
     "WAKE": "SYSTEM_WAKE",
     "SYSTEM_WAKE": "SYSTEM_WAKE",
     "WAKE_ON_LAN": "WAKE_ON_LAN",
@@ -231,6 +234,12 @@ class AgentCommandHandler {
             case "SYSTEM_SLEEP_CANCEL":
                 return this.cancelSleep(cmd.payload?.parameters || cmd.payload || {});
 
+            case "SYSTEM_HIBERNATE":
+                if (permissions.allowRemoteShutdown === false) {
+                    throw new Error("Permission Denied: Remote hibernate is disabled in client configuration.");
+                }
+                return isSimulated ? this.simulateAction("SYSTEM_HIBERNATE") : this.hibernate();
+
             case "SYSTEM_WAKE":
             case "WAKE_ON_LAN":
                 if (permissions.allowRemoteWake === false) throw new Error("Permission Denied: Remote wake is disabled in client configuration.");
@@ -281,6 +290,24 @@ class AgentCommandHandler {
             throw new Error(`Unsupported OS platform for shutdown: ${platform}`);
         }
         return { success: true, message: "System shutdown initiated" };
+    }
+
+    /**
+     * Cross-platform system hibernate execution
+     * Kept completely separate from sleep so that sleep never hibernates.
+     */
+    async hibernate() {
+        const platform = process.platform;
+        if (platform === "win32") {
+            console.log("💤 [Hibernate] Command received; executing Windows hibernate via shutdown.exe /h");
+            await execFileAsync("shutdown.exe", ["/h"]);
+        } else if (platform === "linux") {
+            console.log("💤 [Hibernate] Command received; executing Linux systemctl hibernate");
+            await execFileAsync("systemctl", ["hibernate"], { timeout: 15000 });
+        } else {
+            throw new Error(`Unsupported OS platform for hibernate: ${platform}`);
+        }
+        return { success: true, message: "System hibernate initiated" };
     }
 
     /**
@@ -417,26 +444,41 @@ class AgentCommandHandler {
     async sleepNow(commandId) {
         if (process.platform === "win32") {
             const deviceId = this.config.deviceId;
-            console.log(`🛌 [Sleep] Command received; preparing standby (ID: ${commandId || "unknown"})`);
+            // Step 1: Log command received
+            console.log(`🛌 [Sleep] Step 1: Command received (ID: ${commandId || "unknown"}) - entering standby.`);
+
+            // Step 2: Send RMS server acknowledgement and flush socket buffer
+            this.socket.emit("command:ack", {
+                commandId,
+                deviceId,
+                timestamp: Date.now(),
+                message: "sleep command received, entering standby"
+            });
             this.socket.emit("command:running", {
                 commandId,
                 deviceId,
                 timestamp: Date.now(),
                 message: "sleep command received, entering standby"
             });
-            // Engine.IO normally writes immediately; explicitly flush queued packets before the connection drops.
-            try { this.socket.io?.engine?.flush?.(); } catch (error) {
-                console.warn(`[Sleep] Socket flush failed: ${error.message}`);
+            console.log(`📤 [Sleep] Step 2: Sent acknowledgement to RMS server ("sleep command received, entering standby"), flushing transport buffer.`);
+            try {
+                this.socket.io?.engine?.flush?.();
+            } catch (error) {
+                console.warn(`[Sleep] Socket flush warning: ${error.message}`);
             }
+
+            console.log(`⏳ [Sleep] Waiting 2 seconds before invoking power API...`);
             await new Promise(resolve => setTimeout(resolve, 2000));
 
-            const source = "Add-Type -TypeDefinition 'using System; using System.Runtime.InteropServices; public static class PowerSleep { [DllImport(\"powrprof.dll\", EntryPoint=\"SetSuspendState\", SetLastError=true)] [return: MarshalAs(UnmanagedType.U1)] public static extern bool SetSuspendState([MarshalAs(UnmanagedType.U1)] bool hibernate, [MarshalAs(UnmanagedType.U1)] bool forceCritical, [MarshalAs(UnmanagedType.U1)] bool disableWakeEvent); }'; $result = [PowerSleep]::SetSuspendState($false, $false, $false); Write-Output ('SetSuspendState return value: ' + $result); if (-not $result) { throw 'SetSuspendState returned FALSE.' }";
+            // Step 3: Win32 API SetSuspendState(bHibernate=FALSE, bForce=FALSE, bWakeupEventsDisabled=FALSE)
+            const source = "Add-Type -TypeDefinition 'using System; using System.Runtime.InteropServices; public static class PowerSleep { [DllImport(\"powrprof.dll\", EntryPoint=\"SetSuspendState\", SetLastError=true)] [return: MarshalAs(UnmanagedType.U1)] public static extern bool SetSuspendState([MarshalAs(UnmanagedType.U1)] bool bHibernate, [MarshalAs(UnmanagedType.U1)] bool bForce, [MarshalAs(UnmanagedType.U1)] bool bWakeupEventsDisabled); }'; $result = [PowerSleep]::SetSuspendState($false, $false, $false); Write-Output ('SetSuspendState return value: ' + $result); if (-not $result) { throw 'SetSuspendState returned FALSE.' }";
             try {
-                console.log("[Sleep] Trying Win32 SetSuspendState(FALSE, FALSE, FALSE) via powrprof.dll.");
+                console.log("[Sleep] Step 3: Method used: Win32 SetSuspendState(bHibernate=FALSE, bForce=FALSE, bWakeupEventsDisabled=FALSE) via powrprof.dll.");
                 const apiResult = await execFileAsync("powershell.exe", ["-NoLogo", "-NoProfile", "-NonInteractive", "-WindowStyle", "Hidden", "-Command", source], { timeout: 15000, windowsHide: true });
-                console.log(`[Sleep] Win32 API result: ${(apiResult.stdout || "").trim() || "SetSuspendState returned TRUE."}`);
+                const apiReturnVal = (apiResult.stdout || "").trim();
+                console.log(`[Sleep] Step 4: API return value: ${apiReturnVal || "SetSuspendState returned TRUE."}`);
             } catch (err) {
-                console.error(`[Sleep] Win32 SetSuspendState failed: ${err.message}; trying PsShutdown suspend fallback.`);
+                console.error(`[Sleep] Win32 SetSuspendState failed or returned FALSE: ${err.message}. Trying Sysinternals PsShutdown fallback.`);
                 const candidates = [
                     process.env.IACMSY26_PSSHUTDOWN_PATH,
                     path.join(__dirname, "psshutdown.exe"),
@@ -444,14 +486,16 @@ class AgentCommandHandler {
                 ].filter(Boolean);
                 const psshutdownPath = candidates.find(candidate => require("fs").existsSync(candidate));
                 if (!pshutdownPath) {
-                    throw new Error(`Windows sleep failed: SetSuspendState error: ${err.message}. PsShutdown fallback is unavailable; place psshutdown.exe beside AgentCommander.js or at C:\\ProgramData\\IACMSY26\\Agent\\psshutdown.exe, or set IACMSY26_PSSHUTDOWN_PATH.`);
+                    const missingError = `Windows sleep failed: SetSuspendState error: ${err.message}. PsShutdown fallback is unavailable; place psshutdown.exe beside AgentCommander.js or at C:\\ProgramData\\IACMSY26\\Agent\\psshutdown.exe, or set IACMSY26_PSSHUTDOWN_PATH.`;
+                    console.error(`[Sleep] Error: ${missingError}`);
+                    throw new Error(missingError);
                 }
-                console.log(`[Sleep] Using PsShutdown fallback at ${pshutdownPath} with arguments: -accepteula -d -t 0`);
+                console.log(`[Sleep] Fallback method used: Sysinternals PsShutdown at "${pshutdownPath}" with arguments: -accepteula -d -t 0`);
                 try {
                     const fallback = await execFileAsync(pshutdownPath, ["-accepteula", "-d", "-t", "0"], { timeout: 15000, windowsHide: true });
-                    console.log(`[Sleep] PsShutdown completed: ${(fallback.stdout || "").trim()}`);
+                    console.log(`[Sleep] PsShutdown completed: ${(fallback.stdout || "").trim() || "Process exited successfully"}`);
                 } catch (fallbackError) {
-                    console.error(`[Sleep] PsShutdown fallback failed: ${fallbackError.message}`);
+                    console.error(`[Sleep] Error: PsShutdown fallback failed: ${fallbackError.message}`);
                     throw new Error(`Windows sleep failed: SetSuspendState error: ${err.message}; PsShutdown error: ${fallbackError.message}`);
                 }
             }
