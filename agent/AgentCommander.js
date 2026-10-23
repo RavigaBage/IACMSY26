@@ -389,15 +389,13 @@ class AgentCommandHandler {
             try { await execFileAsync("msg.exe", ["*", `/time:${graceSeconds}`, String(options.warning || "This computer will sleep soon. Save your work.")], { timeout: 5000, windowsHide: true }); } catch {}
         }
         if (graceSeconds === 0) {
-            this.socket.emit("command:complete", { commandId, deviceId: this.config.deviceId, success: true, stdout: "Sleep starting", result: { success: true, scheduled: false } });
-            await this.sleepNow();
+            await this.sleepNow(commandId);
             return { success: true, completionSent: true };
         }
         return new Promise((resolve, reject) => {
             const timer = setTimeout(async () => {
                 this.sleepTimers.delete(scheduleId);
-                this.socket.emit("command:complete", { commandId, deviceId: this.config.deviceId, success: true, stdout: "Sleep starting", result: { success: true, scheduled: false } });
-                try { await this.sleepNow(); resolve({ success: true, completionSent: true }); }
+                try { await this.sleepNow(commandId); resolve({ success: true, completionSent: true }); }
                 catch (error) { this.socket.emit("command:failed", { commandId, deviceId: this.config.deviceId, error: error.message }); reject(error); }
             }, graceSeconds * 1000);
             this.sleepTimers.set(scheduleId, { timer, commandId, allowCancellation: options.allowCancellation !== false, resolve });
@@ -416,14 +414,46 @@ class AgentCommandHandler {
         return { success: true, cancelled: true, scheduleId };
     }
 
-    async sleepNow() {
+    async sleepNow(commandId) {
         if (process.platform === "win32") {
-            const source = "Add-Type -TypeDefinition 'using System; using System.Runtime.InteropServices; public static class PowerSleep { [DllImport(\"powrprof.dll\", SetLastError=true)] public static extern bool SetSuspendState(bool hibernate, bool forceCritical, bool disableWakeEvent); }'; if (-not [PowerSleep]::SetSuspendState($false, $false, $false)) { throw 'Windows refused the sleep request.' }";
+            const deviceId = this.config.deviceId;
+            console.log(`🛌 [Sleep] Command received; preparing standby (ID: ${commandId || "unknown"})`);
+            this.socket.emit("command:running", {
+                commandId,
+                deviceId,
+                timestamp: Date.now(),
+                message: "sleep command received, entering standby"
+            });
+            // Engine.IO normally writes immediately; explicitly flush queued packets before the connection drops.
+            try { this.socket.io?.engine?.flush?.(); } catch (error) {
+                console.warn(`[Sleep] Socket flush failed: ${error.message}`);
+            }
+            await new Promise(resolve => setTimeout(resolve, 2000));
+
+            const source = "Add-Type -TypeDefinition 'using System; using System.Runtime.InteropServices; public static class PowerSleep { [DllImport(\"powrprof.dll\", EntryPoint=\"SetSuspendState\", SetLastError=true)] [return: MarshalAs(UnmanagedType.U1)] public static extern bool SetSuspendState([MarshalAs(UnmanagedType.U1)] bool hibernate, [MarshalAs(UnmanagedType.U1)] bool forceCritical, [MarshalAs(UnmanagedType.U1)] bool disableWakeEvent); }'; $result = [PowerSleep]::SetSuspendState($false, $false, $false); Write-Output ('SetSuspendState return value: ' + $result); if (-not $result) { throw 'SetSuspendState returned FALSE.' }";
             try {
-                await execFileAsync("powershell.exe", ["-NoLogo", "-NoProfile", "-NonInteractive", "-WindowStyle", "Hidden", "-Command", source], { timeout: 15000, windowsHide: true });
+                console.log("[Sleep] Trying Win32 SetSuspendState(FALSE, FALSE, FALSE) via powrprof.dll.");
+                const apiResult = await execFileAsync("powershell.exe", ["-NoLogo", "-NoProfile", "-NonInteractive", "-WindowStyle", "Hidden", "-Command", source], { timeout: 15000, windowsHide: true });
+                console.log(`[Sleep] Win32 API result: ${(apiResult.stdout || "").trim() || "SetSuspendState returned TRUE."}`);
             } catch (err) {
-                // Secondary fallback for Windows
-                await execFileAsync("rundll32.exe", ["powrprof.dll,SetSuspendState", "0,1,0"], { timeout: 10000, windowsHide: true });
+                console.error(`[Sleep] Win32 SetSuspendState failed: ${err.message}; trying PsShutdown suspend fallback.`);
+                const candidates = [
+                    process.env.IACMSY26_PSSHUTDOWN_PATH,
+                    path.join(__dirname, "psshutdown.exe"),
+                    path.join(process.env.ProgramData || "C:\\ProgramData", "IACMSY26", "Agent", "psshutdown.exe")
+                ].filter(Boolean);
+                const psshutdownPath = candidates.find(candidate => require("fs").existsSync(candidate));
+                if (!pshutdownPath) {
+                    throw new Error(`Windows sleep failed: SetSuspendState error: ${err.message}. PsShutdown fallback is unavailable; place psshutdown.exe beside AgentCommander.js or at C:\\ProgramData\\IACMSY26\\Agent\\psshutdown.exe, or set IACMSY26_PSSHUTDOWN_PATH.`);
+                }
+                console.log(`[Sleep] Using PsShutdown fallback at ${pshutdownPath} with arguments: -accepteula -d -t 0`);
+                try {
+                    const fallback = await execFileAsync(pshutdownPath, ["-accepteula", "-d", "-t", "0"], { timeout: 15000, windowsHide: true });
+                    console.log(`[Sleep] PsShutdown completed: ${(fallback.stdout || "").trim()}`);
+                } catch (fallbackError) {
+                    console.error(`[Sleep] PsShutdown fallback failed: ${fallbackError.message}`);
+                    throw new Error(`Windows sleep failed: SetSuspendState error: ${err.message}; PsShutdown error: ${fallbackError.message}`);
+                }
             }
         } else if (process.platform === "linux") {
             try {

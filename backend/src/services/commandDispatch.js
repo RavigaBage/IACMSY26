@@ -166,7 +166,7 @@ class CommandDispatcher {
         socket.on("command:running", async (data) => {
             const commandId = data?.commandId;
             const devId = data?.deviceId || socket.deviceId || defaultDeviceId;
-            console.log(`[CommandDispatcher] RUNNING on ${devId} for command ${commandId}`);
+            console.log(`[CommandDispatcher] RUNNING on ${devId} for command ${commandId}${data?.message ? `: ${data.message}` : ""}`);
             if (commandId) {
                 await this.repo.markTargetStatusByCommand(commandId, devId, "RUNNING");
             }
