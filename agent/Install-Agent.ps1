@@ -19,19 +19,31 @@ function Test-Administrator {
     return $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
 }
 
+# ---------- Pre-flight checks ----------
 if (-not (Test-Administrator)) { throw "Run this installer in PowerShell as Administrator." }
 if (-not (Test-Path (Join-Path $PSScriptRoot "index.js"))) { throw "Run this script from the extracted agent folder." }
+if (-not (Test-Path (Join-Path $PSScriptRoot "package.json"))) { throw "package.json is missing. Re-extract the agent folder and retry." }
+if (-not (Test-Path (Join-Path $PSScriptRoot "config.json"))) { throw "config.json is missing. Re-extract the agent folder and retry." }
+
+if ($ServerUrl -match '[<>]') { throw "Replace the placeholder in -ServerUrl with the real backend address, for example http://192.168.1.20:3000." }
 try { $server = [Uri]$ServerUrl } catch { throw "ServerUrl must be a valid URL, for example https://rdm.example.edu or http://192.168.1.20:3000." }
 if ($server.Scheme -notin @("http", "https") -or [string]::IsNullOrWhiteSpace($server.Host)) { throw "ServerUrl must use http:// or https://." }
-if ($server.Host -in @("localhost", "127.0.0.1", "::1")) { throw "Use a server address reachable from the lab PCs; localhost points back to each PC." }
+if ($server.IsLoopback -or $server.Host -eq "localhost") { throw "Use a server address reachable from the lab PCs; localhost points back to each PC." }
 if ($DeviceId -ne "auto" -and $DeviceId -notmatch '^[A-Za-z0-9._-]{2,100}$') { throw "DeviceId may contain only letters, numbers, dot, underscore, and hyphen." }
+
+# Never wipe the folder we are running from.
+$resolvedInstall = Resolve-Path -LiteralPath $installDir -ErrorAction SilentlyContinue
+if ($resolvedInstall -and ($resolvedInstall.Path.TrimEnd('\') -ieq (Resolve-Path -LiteralPath $PSScriptRoot).Path.TrimEnd('\'))) {
+    throw "Run the installer from the extracted agent folder, not from $installDir."
+}
 
 $nodeCommand = Get-Command node.exe -ErrorAction SilentlyContinue
 $npmCommand = Get-Command npm.cmd -ErrorAction SilentlyContinue
 if (-not $nodeCommand -or -not $npmCommand) { throw "Install Node.js 18 or later for all users, then reopen an elevated PowerShell window and retry." }
-$nodeVersionText = (& $nodeCommand.Source --version).Trim().TrimStart('v')
+$nodeVersionText = ((& $nodeCommand.Source --version).Trim().TrimStart('v') -split '-')[0]
 if ([version]$nodeVersionText -lt [version]"18.0") { throw "Node.js 18 or later is required. Found $nodeVersionText." }
 
+# ---------- Token ----------
 $agentToken = ""
 if (-not $AllowUnauthenticatedDevelopment) {
     $secureToken = Read-Host "Enter the backend AGENT_TOKEN" -AsSecureString
@@ -41,39 +53,64 @@ if (-not $AllowUnauthenticatedDevelopment) {
     if ([string]::IsNullOrWhiteSpace($agentToken)) { throw "AGENT_TOKEN is required. Use -AllowUnauthenticatedDevelopment only with a development backend that has no AGENT_TOKEN." }
 }
 
+# ---------- Remove any previous install ----------
 if (Get-ScheduledTask -TaskName $taskName -ErrorAction SilentlyContinue) {
     Stop-ScheduledTask -TaskName $taskName -ErrorAction SilentlyContinue
     Unregister-ScheduledTask -TaskName $taskName -Confirm:$false
 }
 
+if (Test-Path -LiteralPath $installDir) {
+    # A previous run may have locked the folder down; take ownership and reset ACLs first.
+    & takeown.exe /F $installDir /R /D Y 2>&1 | Out-Null
+    & icacls.exe $installDir /reset /T /C 2>&1 | Out-Null
+}
 New-Item -ItemType Directory -Force -Path $installDir | Out-Null
 Get-ChildItem -LiteralPath $installDir -Force -ErrorAction SilentlyContinue | Remove-Item -Recurse -Force
+
+# ---------- Copy agent files ----------
 Get-ChildItem -LiteralPath $PSScriptRoot -Force |
     Where-Object { $_.Name -notin @("node_modules", ".device_id", ".git") } |
     Copy-Item -Destination $installDir -Recurse -Force
 
+# ---------- Write config.json (UTF-8 without BOM so Node can parse it) ----------
 $configPath = Join-Path $installDir "config.json"
 $config = Get-Content -LiteralPath $configPath -Raw | ConvertFrom-Json
-$config.serverUrl = $server.AbsoluteUri.TrimEnd('/')
-$config.deviceId = $DeviceId
-$config.deviceName = $DeviceName
-$config.location = $Location
-$config.department = $Department
-$config.simulateExecution = [bool]$SimulationMode
+$values = [ordered]@{
+    serverUrl         = $server.AbsoluteUri.TrimEnd('/')
+    deviceId          = $DeviceId
+    deviceName        = $DeviceName
+    location          = $Location
+    department        = $Department
+    simulateExecution = [bool]$SimulationMode
+}
+foreach ($key in $values.Keys) {
+    $config | Add-Member -NotePropertyName $key -NotePropertyValue $values[$key] -Force
+}
 if ($agentToken) { $config | Add-Member -NotePropertyName authToken -NotePropertyValue $agentToken -Force }
-$config | ConvertTo-Json -Depth 10 | Set-Content -LiteralPath $configPath -Encoding utf8
+$json = $config | ConvertTo-Json -Depth 10
+[IO.File]::WriteAllText($configPath, $json, [Text.UTF8Encoding]::new($false))
 $agentToken = $null
 
-# Restrict the shared token/config and agent files to SYSTEM and local administrators.
-& icacls.exe $installDir /inheritance:r /grant:r "*S-1-5-18:(OI)(CI)F" "*S-1-5-32-544:(OI)(CI)F" /T /C | Out-Null
-if ($LASTEXITCODE -ne 0) { throw "Could not set secure permissions on $installDir." }
-
+# ---------- Install dependencies BEFORE locking down permissions ----------
 Push-Location $installDir
 try {
-    & $npmCommand.Source ci --omit=dev --no-audit --no-fund
+    $lockPath = Join-Path $installDir "package-lock.json"
+    $lockOk = (Test-Path -LiteralPath $lockPath) -and ((Get-Content -LiteralPath $lockPath -Raw) -match '"lockfileVersion"')
+
+    if ($lockOk) {
+        & $npmCommand.Source ci --omit=dev --no-audit --no-fund
+        if ($LASTEXITCODE -ne 0) {
+            Write-Warning "npm ci failed (exit code $LASTEXITCODE); falling back to npm install."
+            & $npmCommand.Source install --omit=dev --no-audit --no-fund
+        }
+    } else {
+        Write-Warning "package-lock.json is missing or invalid; using npm install."
+        & $npmCommand.Source install --omit=dev --no-audit --no-fund
+    }
     if ($LASTEXITCODE -ne 0) { throw "Could not install agent dependencies (npm exit code $LASTEXITCODE). Check internet access and retry." }
 } finally { Pop-Location }
 
+# ---------- Logs and launcher ----------
 $logsDir = Join-Path $installDir "logs"
 New-Item -ItemType Directory -Force -Path $logsDir | Out-Null
 $runFile = Join-Path $installDir "run-agent.cmd"
@@ -83,6 +120,13 @@ cd /d "$installDir"
 "$($nodeCommand.Source)" "$installDir\index.js" >> "$logsDir\agent.log" 2>&1
 "@ | Set-Content -LiteralPath $runFile -Encoding ascii
 
+# ---------- Restrict the folder to SYSTEM and local administrators ----------
+# Apply to the folder only (no /T): children inherit these entries. Using /T with (OI)(CI) strips inheritance
+# from every file and leaves them without usable permissions.
+& icacls.exe $installDir /inheritance:r /grant:r "*S-1-5-18:(OI)(CI)F" "*S-1-5-32-544:(OI)(CI)F" | Out-Null
+if ($LASTEXITCODE -ne 0) { throw "Could not set secure permissions on $installDir." }
+
+# ---------- Scheduled task ----------
 $action = New-ScheduledTaskAction -Execute "$env:WINDIR\System32\cmd.exe" -Argument "/c `"$runFile`"" -WorkingDirectory $installDir
 $trigger = New-ScheduledTaskTrigger -AtStartup
 $principal = New-ScheduledTaskPrincipal -UserId "SYSTEM" -LogonType ServiceAccount -RunLevel Highest

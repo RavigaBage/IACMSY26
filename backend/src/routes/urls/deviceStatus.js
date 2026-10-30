@@ -44,7 +44,7 @@ function InitiateService_route(commandService){
     async (req, res) => {
       try {
         const page = Math.max(parseInt(req.query.page) || 1, 1);
-        const limit = 20;
+        const limit = process.env.PAGE_LIMIT;
         const skip = (page - 1) * limit;
 
         const data = await DevicesData.find({ isDeleted: { $ne: true } })

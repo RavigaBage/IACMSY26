@@ -199,37 +199,44 @@ const PORT = 3000;
 
 
 io.on("connection", (socket) => {
-    console.log("🟢 Agent connected:", socket.id);
+    const handshakeDeviceId = socket.handshake.auth?.deviceId || "unregistered";
+    socket.agentRegistered = false;
+    console.log("🔌 Socket connected:", socket.id, `device=${handshakeDeviceId}`);
 
-    socket.on("disconnect", async () => {
-        console.log("🔴 Agent disconnected:", socket.id, socket.deviceId);
-        if (socket.deviceId) {
-            socketService.unregisterDevice(socket.deviceId);
-        }
-        if (socket.deviceMongoId) {
-            socketService.unregisterDevice(socket.deviceMongoId);
-        }
-        if (socket.deviceId || socket.deviceMongoId) {
-            try {
-                const { devices } = require('./src/models');
-                const mongoose = require('mongoose');
-                const disQuery = [];
-                if (socket.deviceId) disQuery.push({ deviceId: socket.deviceId });
-                if (socket.deviceMongoId && mongoose.Types.ObjectId.isValid(socket.deviceMongoId)) {
-                    disQuery.push({ _id: socket.deviceMongoId });
-                }
-                if (disQuery.length > 0) {
-                    await devices.findOneAndUpdate(
-                        { $or: disQuery },
-                        { $set: { "status.remoteAgent": "offline", "security.lastSeen": new Date() } }
-                    );
-                }
-            } catch (err) {
-                console.error("Error setting device offline on disconnect:", err.message);
+    socket.on("disconnect", async (reason) => {
+        const deviceId = socket.deviceId || handshakeDeviceId;
+        const deviceKeys = [socket.deviceId, socket.deviceMongoId].filter(Boolean);
+        const currentDeviceKeys = deviceKeys.filter((key) => socketService.isDeviceSocket(key, socket.id));
+        console.log(`🔴 Socket disconnected: ${socket.id} device=${deviceId} registered=${socket.agentRegistered ? "yes" : "no"} reason=${reason}`);
+
+        // A reconnect may register a new socket before the old socket's disconnect fires.
+        // Only the socket currently mapped to the device may mark it offline.
+        if (currentDeviceKeys.length === 0) {
+            if (socket.agentRegistered) {
+                console.log(`[Socket] Ignoring stale disconnect for ${deviceId}; a newer socket owns the device.`);
             }
+            return;
+        }
+        for (const key of currentDeviceKeys) socketService.unregisterDevice(key, socket.id);
+
+        try {
+            const { devices } = require('./src/models');
+            const mongoose = require('mongoose');
+            const disQuery = [];
+            if (socket.deviceId) disQuery.push({ deviceId: socket.deviceId });
+            if (socket.deviceMongoId && mongoose.Types.ObjectId.isValid(socket.deviceMongoId)) {
+                disQuery.push({ _id: socket.deviceMongoId });
+            }
+            if (disQuery.length > 0) {
+                await devices.findOneAndUpdate(
+                    { $or: disQuery },
+                    { $set: { "status.remoteAgent": "offline", "security.lastSeen": new Date() } }
+                );
+            }
+        } catch (err) {
+            console.error("Error setting device offline on disconnect:", err.message);
         }
     });
-
     socket.on("agent:register", async (data) => {
         socket.deviceId = data.deviceId;
         socket.join(`device:${data.deviceId}`);
@@ -247,6 +254,7 @@ io.on("connection", (socket) => {
         socket.join(`device:${socket.deviceMongoId}`);
         socketService.registerDevice(socket.deviceMongoId, socket);
         socketService.registerDevice(data.deviceId, socket);
+        socket.agentRegistered = true;
 
         if (dispatcher) {
             dispatcher.registerDeviceListeners(socket);

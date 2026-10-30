@@ -10,10 +10,14 @@ class SocketService {
         this.connectedDevices.set(deviceId, socket.id);
     }
 
-    unregisterDevice(deviceId) {
-        this.connectedDevices.delete(deviceId);
+    unregisterDevice(deviceId, socketId) {
+        if (socketId && this.connectedDevices.get(deviceId) !== socketId) return false;
+        return this.connectedDevices.delete(deviceId);
     }
 
+    isDeviceSocket(deviceId, socketId) {
+        return this.connectedDevices.get(deviceId) === socketId;
+    }
     isDeviceOnline(deviceId) {
         
         console.log(deviceId);

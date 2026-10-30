@@ -15,8 +15,8 @@
     "build:android": "bash scripts/build_android_apk.sh"
   },
   "devDependencies": {
-    "@capacitor/cli": "^7.0.1",
     "@capacitor/assets": "^3.0.5",
+    "@capacitor/cli": "^7.0.1",
     "concurrently": "^9.2.4"
   },
   "dependencies": {
@@ -26,7 +26,15 @@
     "@capacitor/status-bar": "^7.0.0",
     "exceljs": "^4.4.0",
     "mongodb-memory-server": "^11.2.0",
-    "nodemailer": "^9.0.3",
+    "nodemailer": "^10.3.0",
     "socket.io-client": "^4.8.4"
+  },
+  "allowScripts": {
+    "sharp@0.32.6": true,
+    "mongodb-memory-server@11.3.0": true
+  },
+  "overrides": {
+    "tar": "^7.5.22",
+    "sharp": "^0.35.5"
   }
 }

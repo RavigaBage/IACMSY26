@@ -11,7 +11,7 @@ router.get('/event-program', restrictTo('user', 'admin'), async(req, res)=>{
         const endOfYear   = new Date(`${year+1}`);
 
         
-        const limit =  20;
+        const limit =  process.env.PAGE_LIMIT;
 
         const skip = (page - 1) * limit;
         const filter = {}

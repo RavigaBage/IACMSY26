@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { ServerCrash, Loader2, Plus, X, MonitorPlay, AlertCircle, Edit2, Trash2, ChevronDown, Command, Moon, Sun, Zap, HelpCircle } from 'lucide-react';
+import { ServerCrash, Loader2, Plus, X, MonitorPlay, AlertCircle, Edit2, Trash2, ChevronDown, Command, Moon, Power, Sun, Zap, HelpCircle } from 'lucide-react';
 import { api } from '../lib/api';
 import { useToast } from '../contexts/ToastContext';
 import { ConfirmModal } from '../components/ui/ConfirmModal';
@@ -50,17 +50,19 @@ export default function Devices() {
   const [filterRoom, setFilterRoom] = useState("All");
   const [filterStatus, setFilterStatus] = useState("All");
   const [currentPage, setCurrentPage] = useState(1);
-  const ITEMS_PER_PAGE = 10;
+  const ITEMS_PER_PAGE = 30;
 
   const fuzzyFilteredDevices = useFuzzySearch(devices, searchQuery, {
     keys: ['deviceName', 'ipAddress', 'operatingSystem', 'location']
   });
 
-  const filteredDevices = fuzzyFilteredDevices.filter(d => {
-    if (filterRoom !== "All" && d.location !== filterRoom) return false;
-    if (filterStatus !== "All" && d.status?.remoteAgent !== filterStatus) return false;
-    return true;
-  });
+  const filteredDevices = fuzzyFilteredDevices
+    .filter(d => {
+      if (filterRoom !== "All" && d.location !== filterRoom) return false;
+      if (filterStatus !== "All" && d.status?.remoteAgent !== filterStatus) return false;
+      return true;
+    })
+    .sort((a, b) => a.deviceName.localeCompare(b.deviceName, undefined, { sensitivity: "base", numeric: true }));
 
   useEffect(() => {
     setCurrentPage(1);
@@ -90,7 +92,7 @@ export default function Devices() {
 
   // Modal State for Remote Control & Delete
   const [modalAction, setModalAction] = useState<{
-    type: 'shutdown' | 'restart' | 'logoff' | 'system_update' | 'sleep' | 'wake' | 'delete',
+    type: 'shutdown' | 'restart' | 'logoff' | 'system_update' | 'sleep' | 'hibernate' | 'wake' | 'delete',
     title: string, 
     message: string, 
     ids: string[]
@@ -189,10 +191,11 @@ export default function Devices() {
       logoff: { title: 'Log off selected users', message: `Log off users on ${selectedIds.size} selected computer(s)? Any unsaved work may be lost.` },
       system_update: { title: 'Apply updates', message: `Check and apply system updates to ${selectedIds.size} selected computer(s)?` },
       sleep: { title: 'Sleep selected computers', message: `Send a sleep warning to ${selectedIds.size} selected computer(s). They will sleep after 30 seconds, and computers with an active user session will be skipped.` },
+      hibernate: { title: 'Hibernate selected computers', message: `Hibernate ${selectedIds.size} selected computer(s)? Save your work first. Wake-on-LAN can wake them only if their hardware supports waking from hibernation.` },
       wake: { title: 'Wake selected computers', message: `Send Wake-on-LAN packets to ${selectedIds.size} selected computer(s)?` },
     };
     const detailsForCommand = details[selectedCommand];
-    if (detailsForCommand) setModalAction({ type: selectedCommand as 'shutdown' | 'restart' | 'logoff' | 'system_update' | 'sleep' | 'wake', ...detailsForCommand, ids: Array.from(selectedIds) });
+    if (detailsForCommand) setModalAction({ type: selectedCommand as 'shutdown' | 'restart' | 'logoff' | 'system_update' | 'sleep' | 'hibernate' | 'wake', ...detailsForCommand, ids: Array.from(selectedIds) });
   };
 
   const requestDelete = (device: Device, e: React.MouseEvent) => {
@@ -280,7 +283,7 @@ export default function Devices() {
         message={modalAction?.message || ''}
         confirmText={modalAction?.type === 'delete' ? 'Delete' : 'Send command'}
         cancelText="Cancel"
-        isDestructive={['delete', 'shutdown', 'restart', 'logoff', 'sleep'].includes(modalAction?.type || '')}
+        isDestructive={['delete', 'shutdown', 'restart', 'logoff', 'sleep', 'hibernate'].includes(modalAction?.type || '')}
       />
 
       <header className="mb-8 flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -331,6 +334,7 @@ export default function Devices() {
                 <option value="">Choose a command…</option>
                 <optgroup label="Power management">
                   {user?.role === 'admin' && <option value="sleep">Sleep selected computers</option>}
+                  {user?.role === 'admin' && <option value="hibernate">Hibernate selected computers</option>}
                   {user?.role === 'admin' && <option value="wake">Wake selected computers (Wake-on-LAN)</option>}
                 </optgroup>
                 <optgroup label="Remote actions">
@@ -344,12 +348,13 @@ export default function Devices() {
               <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-400" />
             </div>
             <button type="button" onClick={requestCommand} disabled={!selectedCommand || selectedIds.size === 0 || !!actionLoading} className="inline-flex items-center justify-center gap-2 rounded-lg bg-zinc-900 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-40">
-              {actionLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : selectedCommand === 'sleep' ? <Moon className="h-4 w-4" /> : selectedCommand === 'wake' ? <Sun className="h-4 w-4" /> : selectedCommand === 'device-Status' ? <MonitorPlay className="h-4 w-4" /> : <Zap className="h-4 w-4" />}
+              {actionLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : selectedCommand === 'sleep' ? <Moon className="h-4 w-4" /> : selectedCommand === 'hibernate' ? <Power className="h-4 w-4" /> : selectedCommand === 'wake' ? <Sun className="h-4 w-4" /> : selectedCommand === 'device-Status' ? <MonitorPlay className="h-4 w-4" /> : <Zap className="h-4 w-4" />}
               Run command
             </button>
           </div>
         </div>
         {selectedCommand === 'sleep' && <p className="mt-3 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-800">Computers receive a 30 second warning. A computer with an active user session will be skipped.</p>}
+        {selectedCommand === 'hibernate' && <p className="mt-3 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-800">Hibernation saves the session and powers down the computer. Wake-on-LAN from hibernation depends on BIOS/UEFI and network-adapter support.</p>}
         {selectedCommand === 'wake' && <p className="mt-3 rounded-lg bg-sky-50 px-3 py-2 text-xs text-sky-800">Wake-on-LAN requires the computer to be configured for WoL and reachable on its network.</p>}
       </section>
 
@@ -712,3 +717,4 @@ export default function Devices() {
     </div>
   );
 }
+
