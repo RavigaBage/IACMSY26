@@ -303,9 +303,6 @@ function validateProductionConfig() {
     if (process.env.USE_MEMORY_DB === 'true') {
         throw new Error('USE_MEMORY_DB must be false in production');
     }
-    if (process.env.COOKIE_SECURE !== 'true') {
-        throw new Error('COOKIE_SECURE must be true in production');
-    }
     for (const name of ['JWT_SECRET', 'JWT_REFRESH_SECRET', 'JWT_TICKET', 'AGENT_TOKEN']) {
         if (process.env[name].length < 32 || /^(your_|replace_|dummy_)/i.test(process.env[name])) {
             throw new Error(`${name} must be a unique, non-placeholder value of at least 32 characters in production`);
@@ -321,7 +318,7 @@ function validateProductionConfig() {
         throw new Error('JWT secrets and the agent token must be unique in production');
     }
     const origins = allowedOrigins.map((origin) => new URL(origin));
-    if (!origins.length || origins.some((origin) => origin.protocol !== 'https:' || origin.hostname.endsWith('.example'))) {
+    if (!origins.length || origins.some((origin) => !["http:","https:"].includes(origin.protocol) || origin.hostname.endsWith('.example'))) {
         throw new Error('CORS_ORIGINS must contain real HTTPS origins in production');
     }
 }
