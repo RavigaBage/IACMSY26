@@ -15,6 +15,11 @@ const APP_STATE = {
     idNum: localStorage.getItem('iac_mobile_user_id_num') || '',
     streak: parseInt(localStorage.getItem('iac_mobile_user_streak') || '0', 10),
   },
+  assignedSeat: {
+    table: 1,
+    seat: 2,
+    seatNumber: 2,
+  },
   activeTicket: null,
   activeTicketTimer: null,
   bookings: [],
@@ -23,7 +28,7 @@ const APP_STATE = {
   issueFilter: 'all',
   currentCategory: 'Hardware',
   evidenceAttachment: null,
-  campus: 'MAIN LOUNGE CAMPUS',
+  campus: 'IAC CENTER BALM LIBRARY',
   announcements: [],
   announcementIndex: 0,
   announcementTimer: null,
@@ -288,7 +293,7 @@ function renderCheckinUI() {
     if (homeStatusText) homeStatusText.textContent = 'ACTIVE CHECK-IN';
     if (homeSessionCode) homeSessionCode.textContent = `SESSION #${t.ticketCode || 'IAC-8894'}`;
     if (homePassTitle) homePassTitle.textContent = 'Current Access Pass';
-    if (homePassSubtitle) homePassSubtitle.textContent = `Checked into Main Lounge at ${formatTime(t.confirmedAt || t.requestedAt || new Date())}`;
+    if (homePassSubtitle) homePassSubtitle.textContent = `Checked into Balm Library at ${formatTime(t.confirmedAt || t.requestedAt || new Date())}`;
     if (homePassBtnText) homePassBtnText.textContent = 'View Digital Pass & QR';
     if (homeProgressWrap) homeProgressWrap.style.display = 'block';
 
@@ -323,6 +328,8 @@ function renderCheckinUI() {
       btnToggleCheckin.className = 'btn btn-yellow w-full';
     }
   }
+
+  updateLoungeStreakDisplay();
 }
 
 function handleHomePassClick() {
@@ -447,6 +454,8 @@ function updateHomeUpcomingReservation() {
     if (timeEl) timeEl.textContent = `${dStr} at ${upcoming.arrivalTime || '14:00'}`;
     if (nodeEl) nodeEl.textContent = `ROOM-${upcoming.roomNumber || '03'}`;
     if (roomEl) roomEl.textContent = `Room ${upcoming.roomNumber} (${upcoming.roomType}) • ${upcoming.programName || 'Facility Reservation'}`;
+  } else {
+    card.style.display = 'none';
   }
 }
 
@@ -969,22 +978,6 @@ async function handleLogout() {
   }
 }
 
-function openPersonalInfoModal() {
-  alert(`Member: ${APP_STATE.user.name}\nEmail: ${APP_STATE.user.email}\nPhone: ${APP_STATE.user.phone}\nStudent ID: ${APP_STATE.user.idNum}`);
-}
-
-function openNotificationsSettings() {
-  showToast('Notification preferences are set to SMS & Push.');
-}
-
-function openDefaultStationModal() {
-  showToast('Default workstation is set to Compute Lab (Desk #14)');
-}
-
-function openSecuritySettings() {
-  showToast('2-Factor Authentication is active via Authenticator app.');
-}
-
 async function fetchUserProfile() {
   if (!APP_STATE.user.id) return;
   try {
@@ -1009,6 +1002,13 @@ async function fetchUserProfile() {
         if (statStreak) statStreak.textContent = String(APP_STATE.user.streak);
         const statCheckins = document.getElementById('statCheckins');
         if (statCheckins) statCheckins.textContent = String(APP_STATE.user.totalCheckins || 0);
+        const pCheckin = document.getElementById('profileCheckinCount');
+        if (pCheckin) pCheckin.textContent = String(APP_STATE.user.totalCheckins || 0);
+        const pStreak = document.getElementById('profileStreakCount');
+        if (pStreak) pStreak.innerHTML = `${APP_STATE.user.streak || 0} <span style="font-size:12px; font-weight:600;">days</span>`;
+        const streakL = document.getElementById('streakCountLarge');
+        if (streakL) streakL.textContent = String(APP_STATE.user.streak || 0);
+        updateLoungeStreakDisplay();
       }
     }
   } catch (err) {
@@ -1052,7 +1052,7 @@ function renderAnnouncement() {
   const count = document.getElementById('announcementCount');
   const dots = document.getElementById('announcementDots');
   const copy = document.getElementById('announcementCopy');
-  if (!controls || !latestHeading || !latestText || !latestCategory || !latestImage || !heading || !text || !category || !count || !dots) return;
+  if (!latestHeading || !latestText || !latestCategory || !latestImage || !heading || !text || !category || !count || !dots || !controls) return;
 
   if (announcements.length === 0) {
     latestHeading.textContent = 'No announcements right now';
@@ -1191,6 +1191,198 @@ function selectCampus(name, label) {
   showToast(`Switched campus view to: ${label}`);
 }
 
+// -------------------------------------------------------------
+// SEAT & WORKSTATION ALLOCATION (36 SEATS: 9 TABLES x 4 SEATS)
+// -------------------------------------------------------------
+function getSeatStorageKey() {
+  const uid = APP_STATE.user.id || APP_STATE.user.mobileUserId || 'current';
+  return `iac_user_seat_${uid}`;
+}
+
+function initUserSeat() {
+  try {
+    const saved = localStorage.getItem(getSeatStorageKey());
+    if (saved) {
+      APP_STATE.assignedSeat = JSON.parse(saved);
+    } else {
+      // Default seat allocation: Table 1, Seat 2 (Compute Lab pc 2)
+      APP_STATE.assignedSeat = { table: 1, seat: 2, seatNumber: 2 };
+    }
+  } catch (e) {
+    APP_STATE.assignedSeat = { table: 1, seat: 2, seatNumber: 2 };
+  }
+  updateSeatDisplays();
+}
+
+function selectLoungeSeat(table, seat) {
+  const seatNumber = (table - 1) * 4 + seat;
+  APP_STATE.assignedSeat = { table, seat, seatNumber };
+  try {
+    localStorage.setItem(getSeatStorageKey(), JSON.stringify(APP_STATE.assignedSeat));
+  } catch (e) {}
+  updateSeatDisplays();
+  renderLoungeTablesGrid();
+  showToast(`Assigned access updated: Lounge table ${table} seat ${seat} (Compute Lab pc ${seatNumber})`);
+}
+
+function updateSeatDisplays() {
+  const seatInfo = APP_STATE.assignedSeat || { table: 1, seat: 2, seatNumber: 2 };
+  const assignedAccessText = `Lounge table ${seatInfo.table} seat ${seatInfo.seat}`;
+  const defaultWorkstationText = `Compute Lab pc ${seatInfo.seatNumber}`;
+
+  const accessEl = document.getElementById('assignedAccessDisplay');
+  if (accessEl) accessEl.textContent = assignedAccessText;
+
+  const stationEl = document.getElementById('defaultWorkstationDisplay');
+  if (stationEl) stationEl.textContent = defaultWorkstationText;
+
+  const modalCurrentSeatBadge = document.getElementById('modalCurrentSeatBadge');
+  if (modalCurrentSeatBadge) modalCurrentSeatBadge.textContent = `Table ${seatInfo.table} • Seat ${seatInfo.seat}`;
+
+  const modalCurrentAccessBadge = document.getElementById('modalCurrentAccessBadge');
+  if (modalCurrentAccessBadge) modalCurrentAccessBadge.textContent = assignedAccessText;
+
+  const modalCurrentPcBadge = document.getElementById('modalCurrentPcBadge');
+  if (modalCurrentPcBadge) modalCurrentPcBadge.textContent = defaultWorkstationText;
+}
+
+function openSeatModal() {
+  renderLoungeTablesGrid();
+  updateSeatDisplays();
+  openModal('seatModal');
+}
+
+function openDefaultStationModal() {
+  openSeatModal();
+}
+
+function renderLoungeTablesGrid() {
+  const container = document.getElementById('seatTablesGrid');
+  if (!container) return;
+
+  const current = APP_STATE.assignedSeat || { table: 1, seat: 2, seatNumber: 2 };
+  let html = '';
+
+  for (let t = 1; t <= 9; t++) {
+    html += `
+      <div class="border border-slate-200 rounded-xl p-3 bg-white shadow-xs">
+        <div class="flex justify-between items-center mb-2">
+          <div class="flex items-center gap-2">
+            <span class="w-6 h-6 rounded-full bg-yellow-100 text-yellow-800 font-bold text-xs flex items-center justify-center">T${t}</span>
+            <strong class="text-xs font-bold text-slate-800">Lounge Table ${t}</strong>
+          </div>
+          <span class="text-[10px] text-muted">Seats ${ (t - 1) * 4 + 1 } - ${ t * 4 }</span>
+        </div>
+        <div class="grid grid-cols-4 gap-2">
+    `;
+
+    for (let s = 1; s <= 4; s++) {
+      const pcNum = (t - 1) * 4 + s;
+      const isSelected = current.table === t && current.seat === s;
+      html += `
+        <button type="button"
+          onclick="selectLoungeSeat(${t}, ${s})"
+          class="p-2 rounded-lg text-center transition-all ${
+            isSelected
+              ? 'bg-yellow-400 text-slate-900 border-2 border-yellow-500 font-bold shadow-xs'
+              : 'bg-slate-50 hover:bg-yellow-50 text-slate-700 border border-slate-200'
+          }">
+          <div class="text-[10px] uppercase tracking-wider font-semibold">Seat ${s}</div>
+          <div class="text-[11px] font-mono mt-0.5">PC ${pcNum}</div>
+          ${isSelected ? '<div class="text-[9px] mt-0.5 font-bold">✔ ACTIVE</div>' : ''}
+        </button>
+      `;
+    }
+
+    html += `
+        </div>
+      </div>
+    `;
+  }
+
+  container.innerHTML = html;
+}
+
+// -------------------------------------------------------------
+// LOUNGE STREAK & ATTENDANCE DISPLAY
+// -------------------------------------------------------------
+function updateLoungeStreakDisplay() {
+  const isCheckedIn = !!APP_STATE.activeTicket;
+  const t = APP_STATE.activeTicket;
+
+  const streakValEl = document.getElementById('streakCountLarge');
+  const streakSubEl = document.getElementById('streakSubText');
+  const pillsContainer = document.getElementById('streakWeekPills');
+
+  let checkinDate;
+  if (isCheckedIn && t) {
+    checkinDate = new Date(t.confirmedAt || t.requestedAt || Date.now());
+  } else {
+    checkinDate = new Date();
+  }
+
+  // Day index: Monday = 0, Tuesday = 1, Wednesday = 2, Thursday = 3, Friday = 4, Saturday = 5, Sunday = 6
+  const dayIdx = (checkinDate.getDay() + 6) % 7;
+  const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+  const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  const dayName = dayNames[checkinDate.getDay()];
+  const monthName = monthNames[checkinDate.getMonth()];
+  const dayNum = checkinDate.getDate();
+
+  if (isCheckedIn) {
+    const activeStreak = Math.max(1, APP_STATE.user.streak || 1);
+    if (streakValEl) streakValEl.textContent = String(activeStreak);
+    if (streakSubEl) streakSubEl.textContent = `Checked in on ${dayName}, ${monthName} ${dayNum} • Active session`;
+
+    const statStreak = document.getElementById('statStreak');
+    if (statStreak) statStreak.textContent = String(activeStreak);
+    const pStreak = document.getElementById('profileStreakCount');
+    if (pStreak) pStreak.innerHTML = `${activeStreak} <span style="font-size:12px; font-weight:600;">days</span>`;
+
+    if (pillsContainer) {
+      const pills = pillsContainer.querySelectorAll('.day-pill');
+      pills.forEach((pill, idx) => {
+        pill.classList.remove('active', 'past');
+        if (idx === dayIdx) {
+          pill.classList.add('active');
+        } else if (idx < dayIdx && idx >= dayIdx - (activeStreak - 1)) {
+          pill.classList.add('past');
+        }
+      });
+    }
+  } else {
+    const userStreak = APP_STATE.user.streak || 0;
+    if (streakValEl) streakValEl.textContent = String(userStreak);
+    if (userStreak > 0) {
+      if (streakSubEl) streakSubEl.textContent = `Last active on ${dayName}, ${monthName} ${dayNum} • Check in today to extend`;
+    } else {
+      if (streakSubEl) streakSubEl.textContent = 'Check in daily to build your attendance streak';
+    }
+
+    if (pillsContainer) {
+      const pills = pillsContainer.querySelectorAll('.day-pill');
+      pills.forEach((pill, idx) => {
+        pill.classList.remove('active', 'past');
+        if (userStreak > 0 && idx === dayIdx) {
+          pill.classList.add('past');
+        }
+      });
+    }
+  }
+}
+
+function openPersonalInfoModal() {
+  showToast(`Member: ${APP_STATE.user.name || 'Member'} (${APP_STATE.user.email || 'Verified'})`);
+}
+
+function openNotificationsSettings() {
+  showToast('Notification channels active: SMS Ticket Delivery & Push Alerts enabled');
+}
+
+function openSecuritySettings() {
+  showToast('Security active: Two-Factor Authentication enabled for Balm Library');
+}
+
 function handleManualStationSync() {
   const val = document.getElementById('manualStationInput').value.trim();
   if (val) {
@@ -1200,11 +1392,7 @@ function handleManualStationSync() {
 }
 
 function showDirectionsModal() {
-  alert('Directions to Room 3 (Compute Lab):\nTake Elevator B to Level 2. Turn left past the Central Hub. Station RIG-03 is on the north window cluster.');
-}
-
-function openAdvisoryModal() {
-  alert('Notice: Scheduled Maintenance tonight from 23:00 to 01:00 UTC.\nCompute Cluster Nodes 12-16 undergoing firmware patches. Backup routers will maintain lounge internet connectivity.');
+  showToast('Directions: Level 2 Balm Library • Turn left past Central Hub to Compute Lab');
 }
 
 function copyToClipboard(text) {
@@ -1266,6 +1454,18 @@ document.addEventListener('DOMContentLoaded', async () => {
   document.getElementById('profileNameDisplay').textContent = displayName;
   document.getElementById('profileMenuEmail').textContent = `${APP_STATE.user.email || 'Verified Member'} • ${APP_STATE.user.phone || 'No phone'}`;
   document.getElementById('profileIdDisplay').textContent = APP_STATE.user.idNum || 'IAC-MEMBER';
+  const campusNameEl = document.getElementById('currentCampusName');
+  if (campusNameEl) campusNameEl.textContent = APP_STATE.campus;
+  const pCheckinInit = document.getElementById('profileCheckinCount');
+  if (pCheckinInit) pCheckinInit.textContent = String(APP_STATE.user.totalCheckins || 0);
+  const pStreakInit = document.getElementById('profileStreakCount');
+  if (pStreakInit) pStreakInit.innerHTML = `${APP_STATE.user.streak || 0} <span style="font-size:12px; font-weight:600;">days</span>`;
+  const streakLInit = document.getElementById('streakCountLarge');
+  if (streakLInit) streakLInit.textContent = String(APP_STATE.user.streak || 0);
+
+  // Initialize assigned seat allocation (36 seats: 9 tables x 4 seats)
+  initUserSeat();
+  updateLoungeStreakDisplay();
 
   // Initial Data Fetch for verified user
   await fetchActiveCheckinTicket();

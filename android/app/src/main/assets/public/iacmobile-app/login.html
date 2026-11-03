@@ -306,12 +306,12 @@
   <form id="loginForm" onsubmit="handleLogin(event)" novalidate>
     <div class="form-group">
       <label class="form-label" for="loginEmail">Email Address</label>
-      <input type="email" id="loginEmail" class="form-input" placeholder="alex.vance@mit.edu" required autocomplete="email" value="alex.vance@mit.edu">
+      <input type="email" id="loginEmail" class="form-input" placeholder="member@iac.com" required autocomplete="email">
     </div>
     <div class="form-group">
       <label class="form-label" for="loginPass">Password</label>
       <div class="input-wrapper">
-        <input type="password" id="loginPass" class="form-input" placeholder="••••••••" required autocomplete="current-password" value="Password123!">
+        <input type="password" id="loginPass" class="form-input" placeholder="••••••••" required autocomplete="current-password">
         <button type="button" class="toggle-pwd-btn" onclick="togglePwdVisibility('loginPass', this)">Show</button>
       </div>
     </div>
@@ -324,19 +324,19 @@
   <form id="registerForm" class="hidden" onsubmit="handleRegister(event)" novalidate>
     <div class="form-group">
       <label class="form-label" for="regName">Full Name</label>
-      <input type="text" id="regName" class="form-input" placeholder="Alex Vance" required autocomplete="name">
+      <input type="text" id="regName" class="form-input" placeholder="Your Full Name" required autocomplete="name">
     </div>
     <div class="form-group">
       <label class="form-label" for="regEmail">Email Address</label>
-      <input type="email" id="regEmail" class="form-input" placeholder="alex.vance@mit.edu" required autocomplete="email">
+      <input type="email" id="regEmail" class="form-input" placeholder="member@iac.com" required autocomplete="email">
     </div>
     <div class="form-group">
       <label class="form-label" for="regPhone">Phone Number</label>
-      <input type="tel" id="regPhone" class="form-input" placeholder="+1 (555) 0192" autocomplete="tel">
+      <input type="tel" id="regPhone" class="form-input" placeholder="e.g. 0240000000" autocomplete="tel">
     </div>
     <div class="form-group">
       <label class="form-label" for="regId">Student / Member ID</label>
-      <input type="text" id="regId" class="form-input" placeholder="IAC-USR-88402">
+      <input type="text" id="regId" class="form-input" placeholder="Student or Member ID">
     </div>
     <div class="form-group">
       <label class="form-label" for="regPass">Password (min. 6 characters)</label>

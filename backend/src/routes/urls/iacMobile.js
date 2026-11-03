@@ -179,33 +179,12 @@ router.post('/auth/login', async (req, res) => {
     const normalizedEmail = email.toLowerCase().trim();
     let profile = await MobileUserProfile.findOne({ email: normalizedEmail }).select('+password');
     if (!profile) {
-      // Auto-provision demo account if logging in as Alex Vance
-      if (normalizedEmail === 'alex.vance@mit.edu') {
-        profile = await MobileUserProfile.create({
-          mobileUserId: 'mob_user_88402',
-          name: 'Alex Vance',
-          email: 'alex.vance@mit.edu',
-          phoneNumber: '+1 555-0192',
-          studentId: 'IAC-USR-88402',
-          password: 'Password123!',
-          streak: 7,
-          longestStreak: 12,
-          totalCheckins: 14,
-        });
-      } else {
-        return res.status(401).json({ status: 'error', error: 'Invalid email or password', message: 'Invalid email or password' });
-      }
+      return res.status(401).json({ status: 'error', error: 'Invalid email or password', message: 'Invalid email or password' });
     }
 
     const isMatch = await profile.comparePassword(password);
     if (!isMatch) {
-      // Permit standard demo password if demo account
-      if (normalizedEmail === 'alex.vance@mit.edu' && (password === 'Password123!' || password === 'alex123')) {
-        profile.password = password;
-        await profile.save();
-      } else {
-        return res.status(401).json({ status: 'error', error: 'Invalid email or password', message: 'Invalid email or password' });
-      }
+      return res.status(401).json({ status: 'error', error: 'Invalid email or password', message: 'Invalid email or password' });
     }
 
     const accessToken = signAccessToken(profile._id);
@@ -660,51 +639,8 @@ router.get('/issues', async (req, res) => {
     const { mobileUserId } = req.query;
     let issues = await Issue.find().sort({ createdAt: -1 }).lean();
 
-    // Auto-seed initial issues if empty matching the mobile design
-    if (!issues || issues.length === 0) {
-      const seeded = await Issue.insertMany([
-        {
-          ticketCode: '#TKT-8924',
-          title: 'GPU throttling during heavy rendering',
-          nodeEquipment: 'LAB-PC-03',
-          reporterName: 'Marcus B.',
-          category: 'Hardware',
-          description: 'NVIDIA driver crash with code 0x00000116 when launching CUDA benchmark on Blender 4.2. Thermal sensors hitting 88C.',
-          status: 'in-progress',
-          affectedCount: 4,
-          assigneeName: 'Alex Vance',
-          assigneeRole: 'DESK LEAD',
-          assigneeNote: 'Assigned • Remote diagnostics running. Stress test scheduled.',
-          createdAt: new Date(Date.now() - 3600000 * 2),
-        },
-        {
-          ticketCode: '#TKT-8919',
-          title: 'Smart Lock reader slow on Room 2 entrance',
-          nodeEquipment: 'DOOR-02',
-          reporterName: 'Anonymous',
-          category: 'Facility',
-          description: 'NFC badges take 4-6 scans before granting entry. Digital app badge times out intermittently on arrival.',
-          status: 'pending',
-          affectedCount: 2,
-          assigneeNote: 'Awaiting facilities hardware maintenance team.',
-          createdAt: new Date(Date.now() - 3600000 * 22),
-        },
-        {
-          ticketCode: '#TKT-8902',
-          title: 'WiFi drop near Zone C audio suites',
-          nodeEquipment: 'ZONE-C-WIFI',
-          reporterName: 'Network Ops',
-          category: 'Network',
-          description: 'Repeated ping timeouts when uploading 96kHz audio stems. Signal dips to -84dBm around workstation C.',
-          status: 'resolved',
-          affectedCount: 5,
-          assigneeName: 'Network Ops',
-          assigneeRole: 'SYSTEM ADMIN',
-          assigneeNote: 'Resolved by Network Ops • Access Point AP-2 re-provisioned and channels optimized. Beamforming steering calibrated for Suite C.',
-          createdAt: new Date(Date.now() - 3600000 * 26),
-        },
-      ]);
-      issues = seeded.map(doc => doc.toObject());
+    if (!issues) {
+      issues = [];
     }
 
     // If mobileUserId is supplied, attach current user's vote
@@ -877,18 +813,6 @@ router.post('/issues/:id/vote', verifyMobileOrAdminAuth, async (req, res) => {
 // Active announcements for mobile app slider
 router.get('/announcements', async (req, res) => {
   try {
-    const totalCount = await Announcement.countDocuments();
-    if (totalCount === 0) {
-      await Announcement.create({
-        category: 'notice',
-        title: 'Scheduled Maintenance',
-        description: 'Compute Cluster Nodes 12-16 undergoing firmware patches tonight at 23:00 UTC. Secondary switches will remain active for lounge terminals.',
-        startsAt: new Date(Date.now() - 3600000),
-        endsAt: new Date(Date.now() + 86400000 * 7),
-        sortOrder: 1,
-        isActive: true,
-      });
-    }
 
     const now = new Date();
     const query = {
@@ -979,54 +903,6 @@ router.delete('/announcements/:id', async (req, res) => {
 router.get('/booking-requests', async (req, res) => {
   try {
     const { status, mobileUserId } = req.query;
-
-    const count = await MobileBookingRequest.countDocuments();
-    if (count === 0) {
-      await MobileBookingRequest.insertMany([
-        {
-          mobileUserId: mobileUserId || 'mob_user_default',
-          mobileUserName: 'Alex Vance',
-          contactEmail: 'alex.vance@mit.edu',
-          roomNumber: '3',
-          roomType: 'Compute Lab',
-          requestedDate: new Date(),
-          requestedSlot: '14:00 - 18:00 (4 hrs)',
-          arrivalTime: '14:00',
-          programName: 'High Performance Node & Rendering',
-          description: 'Rig 03 • Dual 4K + RTX 4090. Deep learning & CUDA benchmarking.',
-          status: 'confirmed',
-          eventDetailsSubmitted: true,
-          eventDetails: {
-            organizer: 'Spatial Dynamics Lab',
-            presenter: 'Alex Vance',
-            programName: 'High Performance Node & Rendering',
-            eventType: 'project',
-            category: 'ai',
-            participants: 1,
-            beneficiaries: 'students',
-            description: 'Rig 03 • Dual 4K + RTX 4090. Deep learning & CUDA benchmarking.',
-            startDate: new Date(),
-            endDate: new Date(),
-            roomType: 'Compute Lab',
-            paymentStatus: 'Paid',
-          },
-        },
-        {
-          mobileUserId: mobileUserId || 'mob_user_default',
-          mobileUserName: 'Alex Vance',
-          contactEmail: 'alex.vance@mit.edu',
-          roomNumber: '1',
-          roomType: 'Conf Suite',
-          requestedDate: new Date(Date.now() + 86400000),
-          requestedSlot: '10:00 - 12:00',
-          arrivalTime: '10:00',
-          programName: 'Team Research Sync',
-          description: 'Quarterly spatial research team sync with 4 attendees.',
-          status: 'pending',
-          eventDetailsSubmitted: false,
-        },
-      ]);
-    }
 
     const filter = {};
     if (status && status !== 'all') filter.status = status;
